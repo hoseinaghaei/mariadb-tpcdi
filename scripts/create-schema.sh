@@ -83,10 +83,24 @@ docker rm -f "$CTR" >/dev/null 2>&1
 docker volume create "$VOL" >/dev/null
 echo
 echo "Starting $IMG as $CTR ..."
+# The staging area is mounted read-only so LOAD DATA INFILE can reach the
+# source files.  Read-only because the server has no business writing there,
+# and because a mistake could otherwise damage data that every later
+# measurement is taken against.
+STAGE="tpcdi-staging-sf${SCALE}"
+STAGE_ARGS=""
+if docker volume inspect "$STAGE" >/dev/null 2>&1; then
+  STAGE_ARGS="-v ${STAGE}:/staging:ro"
+  echo "  mounting $STAGE at /staging (read-only)"
+else
+  echo "  note: no staging volume '$STAGE' yet -- generate it with"
+  echo "        bash scripts/generate-data.sh --scale $SCALE"
+fi
+
 docker run -d --name "$CTR" \
   -e MARIADB_ROOT_PASSWORD="$PW" -e MARIADB_DATABASE="$DB" \
-  -v "$VOL":/var/lib/mysql \
-  "$IMG" >/dev/null || die "could not start $CTR"
+  -v "$VOL":/var/lib/mysql $STAGE_ARGS \
+  "$IMG" --secure-file-priv=/staging >/dev/null || die "could not start $CTR"
 
 printf '  waiting for the server'
 for i in $(seq 1 60); do

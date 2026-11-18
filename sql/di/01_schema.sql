@@ -386,5 +386,13 @@ CREATE TABLE Audit (
     `Date`    DATE              NULL,
     Attribute VARCHAR(50)   NOT NULL,
     Value     BIGINT            NULL,                -- SNUM(15)
-    DValue    DECIMAL(15,5)     NULL
+    -- Spec types this SNUM(15,5), i.e. 10 digits before the point.  The
+    -- generator writes ONE_YEAR_IN_MILLISECONDS = 31557600000, which is 11,
+    -- so its own audit data does not fit the type the specification gives it.
+    -- Clause 7.2.6.2 requires every field be loaded into its column, so the
+    -- column is widened: DECIMAL(20,5) holds exactly every value SNUM(15,5)
+    -- would and more, and the audit query never reads DValue (0 references),
+    -- so no test is affected.  Measured at SF=3 and SF=5: the widest value is
+    -- 11 integer digits and does not grow with scale factor.
+    DValue    DECIMAL(20,5)     NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
