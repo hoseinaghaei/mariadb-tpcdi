@@ -11,6 +11,7 @@ Due **24 December 2026**.
 
 | Path | What |
 |---|---|
+| `PHASES.md` | **Start here if you are joining.** What each phase is, what finishes it, and the conventions |
 | `report/00-what-we-have-to-do.md` | What TPC-DI requires, read out of the specification with clause references |
 | `report/01-steps-and-validation.md` | The ordered plan, and the oracle that validates each step |
 | `spec/tpc-di_v1.1.0.pdf` | TPC-DI Standard Specification v1.1.0 (November 2014) |
