@@ -169,13 +169,45 @@ whose classloading does not survive the Java 9 module system.
 
 ---
 
-## All of it in one command
+## Or use the two scripts
+
+Generate (asks before destroying anything that already exists):
 
 ```
-bash scripts/verify-phase-02.sh
+bash scripts/generate-data.sh                 # scale factor 5
+bash scripts/generate-data.sh --scale 3       # any scale factor >= 3
+bash scripts/generate-data.sh --force         # replace without asking
+bash scripts/generate-data.sh --keep          # leave existing data alone
 ```
 
-Runs steps 4 to 9, prints seventeen checks, ends `passed 17, failed 0`, and exits
-non-zero if anything fails. Verified to fail correctly: pointed at a volume
-holding only an empty report and a bare `Batch1` directory it fails twelve checks
-and exits 1.
+Then verify:
+
+```
+bash scripts/verify-phase-02.sh                     # scale factor 5
+bash scripts/verify-phase-02.sh tpcdi-staging-sf3   # any generated volume
+```
+
+The verifier runs steps 4 to 9, prints seventeen checks and exits non-zero if
+any fails. It takes the scale factor from the volume name, so it works against
+any generated volume rather than only SF=5.
+
+Checked that it fails when it should: against a volume holding only an empty
+report and a bare `Batch1` directory it exits 1; against a volume that does not
+exist, 1; against a name it cannot parse, 2.
+
+## Measured at two scale factors
+
+| | SF=3 | SF=5 |
+|---|---|---|
+| Batch1 rows | 4,539,962 | 7,804,509 |
+| Batch2 rows | 19,900 | 33,380 |
+| Batch3 rows | 19,855 | 33,455 |
+| On disk | 268.5 MiB | 465.3 MiB |
+| Generation | 8 s | 29 s |
+| FINWIRE files | 203 | 203 |
+| FINWIRE CMP / SEC | 1,500 / 2,400 | 2,500 / 4,000 |
+
+The FINWIRE file count is date-driven, not scale-driven, so it is 203 at every
+scale factor. The record counts confirm the scaling rule inferred in Phase 2:
+`CMP = 0.5 x SF x 1000` and `SEC = 0.8 x SF x 1000`, which is now asserted by
+the verifier rather than assumed.

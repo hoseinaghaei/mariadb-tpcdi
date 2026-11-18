@@ -185,9 +185,12 @@ the third-party "SF 10 ≈ 1 GB". Measured: SF=5 is 464 MiB, so SF=10 would be
 around 0.9 GiB. The third party was right. The constants are expressed against an
 effective `${SF}` of **`-sf` × 1000** — 2,500 `CMP` records is `FWCMPScaling`
 (0.5) × 5000, and 4,000 `SEC` is `FWSECScaling` (0.8) × 5000, with `-sf 5`. That
-multiplier is an inference from two data points and should be confirmed by
-generating at a second scale factor in Step 12, but it explains the discrepancy
-exactly.
+multiplier was an inference from two data points; it has since been **confirmed**
+by generating at SF=3, which produced exactly 1,500 CMP and 2,400 SEC records
+against the predicted `0.5 x 3000` and `0.8 x 3000`. The verifier now asserts it.
+
+SF=3 also gives a second sizing point: 4,539,962 / 19,900 / 19,855 rows in
+268.5 MiB, generated in 8 s.
 
 **The 1800-second floor will dominate even harder than expected.** Batch2 and
 Batch3 are 33k rows each against Batch1's 7.8M. Even if an incremental update
