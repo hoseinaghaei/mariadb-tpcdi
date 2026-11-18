@@ -43,10 +43,10 @@ with a `__STAGING__` placeholder so one file serves every scale factor.
 ## 3. How it runs
 
 ```
-bash scripts/load-reference.sh                 scale factor 5
-bash scripts/load-reference.sh --scale 3       any scale factor
-bash scripts/load-reference.sh --force         reload without asking
-bash scripts/load-reference.sh --keep          leave existing rows alone
+python benchmark_di.py --phase 4                 scale factor 5
+python benchmark_di.py --scale 3 --phase 4       any scale factor
+python benchmark_di.py --phase 4 --force         reload without asking
+python benchmark_di.py --phase 4 --keep          leave existing rows alone
 ```
 
 Same contract as the other scripts: with rows already present it prints the
@@ -92,8 +92,8 @@ seconds in a day, and the reference tables are code lists. The *values* in the
 | P7 | The audit query's own `Audit` table tests report OK | **PASS** |
 
 ```
-bash scripts/verify-phase-04.sh 5     -> passed 19, failed 0
-bash scripts/verify-phase-04.sh 3     -> passed 19, failed 0
+python verify_di.py --scale 5 --phase 4     -> passed 19, failed 0
+python verify_di.py --scale 3 --phase 4     -> passed 19, failed 0
 ```
 
 Counts are compared against the source files themselves rather than against
@@ -196,8 +196,8 @@ which is not where anyone would look.
 ## 8. Reproducing this
 
 ```
-bash scripts/generate-data.sh  --scale 5
-bash scripts/create-schema.sh  --scale 5
-bash scripts/load-reference.sh --scale 5
-bash scripts/verify-phase-04.sh 5
+python benchmark_di.py --scale 5 --phase 2
+python benchmark_di.py --scale 5 --phase 3
+python benchmark_di.py --scale 5 --phase 4
+python verify_di.py --scale 5 --phase 4
 ```

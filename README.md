@@ -15,13 +15,42 @@ Due **24 December 2026**.
 | `report/01-steps-and-validation.md` | The ordered plan, and the oracle that validates each step |
 | `spec/tpc-di_v1.1.0.pdf` | TPC-DI Standard Specification v1.1.0 (November 2014) |
 | `tools/` | `TPC-DI_Tools_v1.1.0.zip` and its contents — not committed, see `tools/MANIFEST.md` |
-| `sql/` | Schema DDL and the transformation SQL |
-| `scripts/` | Loader and driver code |
+| `benchmark_di.py` | The driver: one command, any OS |
+| `verify_di.py` | Every verification check |
+| `sql/di/` | Schema DDL, load SQL, and TPC's appendix queries adapted to MariaDB |
+| `scripts/adapt-appendix.py` | Generates `sql/di/adapted/` from the pristine appendix files |
 | `docker/` | MariaDB image, and the Java 8 layer DIGen needs |
+
+## Running it
+
+Docker is the only prerequisite. MariaDB, DIGen, Java 8 and everything else
+lives in containers.
+
+```
+python benchmark_di.py --scale 5          generate, create, load
+python verify_di.py    --scale 5          check every phase
+```
+
+Both are standard-library Python and work on Windows, macOS and Linux. Add
+`--phase N` to run or verify one phase, `--force` to replace existing data
+without being asked, `--keep` never to replace anything.
+
+The TPC tools are not redistributed: download `TPC-DI_Tools_v1.1.0.zip` from
+tpc.org and unpack it into `tools/` so that `tools/Tools/DIGen.jar` exists.
+`tools/MANIFEST.md` records the SHA-256.
 
 ## Status
 
-Phase 1: obtaining and inventorying the TPC tools. Nothing is implemented yet.
+| Phase | What | State |
+|---|---|---|
+| 1 | Obtain and inventory the TPC tools | done |
+| 2 | Generate the source data | done |
+| 3 | Create the warehouse schema | done |
+| 4 | Load the Audit and reference tables | done |
+| 5+ | The historical load | next |
+
+51 verification checks pass at SF=3 and SF=5. TPC's audit query reports
+114 of 166 tests OK; the rest need the data later phases load.
 
 ## The one thing to know before reading anything else
 

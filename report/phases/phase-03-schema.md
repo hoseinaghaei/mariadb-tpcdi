@@ -64,10 +64,10 @@ they belong, as something measured rather than assumed.
 ## 4. How it is created — Docker only, no published port
 
 ```
-bash scripts/create-schema.sh                 scale factor 5
-bash scripts/create-schema.sh --scale 3       any scale factor
-bash scripts/create-schema.sh --force         replace without asking
-bash scripts/create-schema.sh --keep          leave an existing one alone
+python benchmark_di.py --phase 3                 scale factor 5
+python benchmark_di.py --scale 3 --phase 3       any scale factor
+python benchmark_di.py --phase 3 --force         replace without asking
+python benchmark_di.py --phase 3 --keep          leave an existing one alone
 ```
 
 `mariadb:11.4`, data in a named volume `tpcdi-dw-sf<N>`, container
@@ -102,7 +102,7 @@ no data. What matters at this stage is that it *runs*: no "unknown column", no
 | S6 | 126 tests returned; both audit variants agree | **PASS** |
 
 ```
-bash scripts/verify-phase-03.sh          -> passed 14, failed 0
+python verify_di.py --phase 3          -> passed 14, failed 0
 ```
 
 **S4 had to be fixed before it was worth anything.** As first written it
@@ -200,7 +200,7 @@ is the oracle and the finding is worth reporting.
 ## 8. Reproducing this
 
 ```
-bash scripts/create-schema.sh --scale 5
-bash scripts/verify-phase-03.sh 5
+python benchmark_di.py --scale 5 --phase 3
+python verify_di.py --scale 5 --phase 3
 docker exec -it tpcdi-mariadb-sf5 mariadb -uroot -ptpcdi tpcdi
 ```

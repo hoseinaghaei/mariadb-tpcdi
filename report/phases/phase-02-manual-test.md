@@ -174,17 +174,17 @@ whose classloading does not survive the Java 9 module system.
 Generate (asks before destroying anything that already exists):
 
 ```
-bash scripts/generate-data.sh                 # scale factor 5
-bash scripts/generate-data.sh --scale 3       # any scale factor >= 3
-bash scripts/generate-data.sh --force         # replace without asking
-bash scripts/generate-data.sh --keep          # leave existing data alone
+python benchmark_di.py --phase 2                 # scale factor 5
+python benchmark_di.py --scale 3 --phase 2       # any scale factor >= 3
+python benchmark_di.py --phase 2 --force         # replace without asking
+python benchmark_di.py --phase 2 --keep          # leave existing data alone
 ```
 
 Then verify:
 
 ```
-bash scripts/verify-phase-02.sh                     # scale factor 5
-bash scripts/verify-phase-02.sh tpcdi-staging-sf3   # any generated volume
+python verify_di.py --phase 2                     # scale factor 5
+python verify_di.py --scale 3 --phase 2   # any generated volume
 ```
 
 The verifier runs steps 4 to 9, prints seventeen checks and exits non-zero if
