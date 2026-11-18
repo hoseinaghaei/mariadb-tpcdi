@@ -3,7 +3,8 @@
 #
 #   bash scripts/verify-phase-03.sh [scale]      default: 5
 #
-# Read-only.  Exits non-zero if any check fails.
+# Read-only: three of the appendix queries INSERT into DImessages, so they are
+# run inside a transaction and rolled back.  Exits non-zero if any check fails.
 set -u
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 SCALE="${1:-5}"
@@ -74,12 +75,30 @@ rm -rf "$TMPA"
 
 # ---- TPC's own SQL runs against our schema --------------------------------
 echo
+DIM_BEFORE=$(q -e "select count(*) from DImessages" | tr -d ' \r')
 echo "S5     TPC's appendix queries run against the schema"
 echo "        (this is the real column-name check: their SQL, our tables)"
+# tpcdi_validation.sql and both visibility queries INSERT into DImessages --
+# only the audit query is read-only.  Running them bare, as this check first
+# did, left 130 rows behind in DImessages and then broke the audit query with
+# "Subquery returns more than 1 row".  A verifier that mutates what it
+# verifies is worse than no verifier, so the writers are wrapped in a
+# transaction and rolled back.  The statement still has to parse and execute
+# against the real tables, which is the whole point of the check.
 for Q in tpcdi_visibility_1 tpcdi_visibility_2 tpcdi_validation tpcdi_audit tpcdi_audit.innerjoin; do
-  ERR=$(runfile < "$HERE/sql/di/adapted/$Q.sql" 2>&1 >/dev/null | grep -m1 "^ERROR")
+  SCRATCH=$(mktemp)
+  case "$Q" in
+    tpcdi_audit*) cat "$HERE/sql/di/adapted/$Q.sql" > "$SCRATCH";;
+    *) { echo "START TRANSACTION;"; cat "$HERE/sql/di/adapted/$Q.sql"; echo; echo "ROLLBACK;"; } > "$SCRATCH";;
+  esac
+  ERR=$(runfile < "$SCRATCH" 2>&1 >/dev/null | grep -m1 "^ERROR")
+  rm -f "$SCRATCH"
   [ -z "$ERR" ] && ok "$Q runs" || bad "$Q: $(echo "$ERR" | cut -c1-90)"
 done
+LEFT=$(q -e "select count(*) from DImessages" | tr -d ' \r')
+BEFORE_OK=${DIM_BEFORE:-$LEFT}
+[ "$LEFT" = "$BEFORE_OK" ] && ok "DImessages unchanged by this check ($LEFT rows)" \
+                           || bad "this check left rows behind in DImessages"
 
 # ---- the audit returns a full test suite ----------------------------------
 echo

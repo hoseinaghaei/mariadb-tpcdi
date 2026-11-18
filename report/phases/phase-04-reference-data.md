@@ -167,6 +167,20 @@ validates Clause 4.5.2.1's filter rule against the generator **before Phase 5
 writes a line of `DimBroker`**. If our reading of the broker filter were wrong,
 this check would have said so a phase early.
 
+### 6.5 The Phase 3 verifier was mutating the warehouse
+
+Loading the `Audit` table turned a latent bug into a visible one.
+`verify-phase-03.sh` ran all four appendix queries to prove they parse — but
+three of them `INSERT` into `DImessages`. With an empty warehouse the leftover
+rows were harmless. With `Audit` populated, the audit query's scalar subqueries
+over `DImessages` started matching several rows and the whole suite failed with
+`ERROR 1242 Subquery returns more than 1 row`.
+
+Fixed in `verify-phase-03.sh` by wrapping the writing queries in a transaction
+and rolling back, plus a new check that `DImessages` is unchanged. Recorded here
+because of how it presented: a Phase 3 check failing because of a Phase 4 load,
+which is not where anyone would look.
+
 ## 7. What this phase settles for later work
 
 - **The `Audit` table is populated**, so every later phase can be checked against

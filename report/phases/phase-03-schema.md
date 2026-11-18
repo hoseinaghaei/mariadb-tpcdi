@@ -1,6 +1,6 @@
 # Phase 3 — The Data Warehouse schema
 
-**Status: COMPLETE.** 14 of 14 checks pass. 2026-11-18.
+**Status: COMPLETE.** 15 of 15 checks pass. 2026-11-18.
 
 Plan step: `../01-steps-and-validation.md` Step 3.
 
@@ -112,8 +112,21 @@ tampering before the diff could see it. A deliberately corrupted
 14 of 14. It now regenerates into a scratch directory and compares, and the same
 corruption fails both S4 (drift) and S5 (`Unknown column 'no_such_column'`).
 
-Negative tests run: tampered file → 12 passed / 2 failed, exit 1; no container
-for the requested scale factor → exit 1; restored file → 14 passed, exit 0.
+Negative tests run: tampered file → 2 failures, exit 1; no container for the
+requested scale factor → exit 1; restored file → exit 0.
+
+**The verifier was also writing to the database it verified.** Three of the four
+appendix queries — `tpcdi_validation.sql` and both visibility queries — are
+`INSERT`s into `DImessages`; only the audit query reads. Running them bare left
+130 rows behind, and once `Audit` was populated in Phase 4 those rows broke the
+audit query outright with `ERROR 1242 Subquery returns more than 1 row`. It
+surfaced as a Phase 3 regression after a Phase 4 load, which is a confusing way
+to find out.
+
+They are now wrapped in `START TRANSACTION` / `ROLLBACK`, and a fifteenth check
+asserts `DImessages` is unchanged across the run. Verified by running
+phase 3 and phase 4 verification alternately twice: 15/15 and 19/19 each time,
+with `DImessages` at 0 throughout.
 
 ## 6. Adapting TPC's SQL to MariaDB
 
