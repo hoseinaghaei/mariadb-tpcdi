@@ -16,7 +16,9 @@ Due **24 December 2026**.
 | `spec/tpc-di_v1.1.0.pdf` | TPC-DI Standard Specification v1.1.0 (November 2014) |
 | `tools/` | `TPC-DI_Tools_v1.1.0.zip` and its contents — not committed, see `tools/MANIFEST.md` |
 | `benchmark_di.py` | The driver: one command, any OS |
-| `verify_di.py` | Every verification check |
+| `verify_di.py` | Runs the checks |
+| `tpcdi/phaseNN_*.py` | One module per phase, holding both its loading and its checks |
+| `tpcdi/common.py` | Docker, MariaDB and prompting plumbing shared by every phase |
 | `sql/di/` | Schema DDL, load SQL, and TPC's appendix queries adapted to MariaDB |
 | `scripts/adapt-appendix.py` | Generates `sql/di/adapted/` from the pristine appendix files |
 | `docker/` | MariaDB image, and the Java 8 layer DIGen needs |
@@ -34,6 +36,11 @@ python verify_di.py    --scale 5          check every phase
 Both are standard-library Python and work on Windows, macOS and Linux. Add
 `--phase N` to run or verify one phase, `--force` to replace existing data
 without being asked, `--keep` never to replace anything.
+
+Each phase lives in its own module under `tpcdi/`, holding both how it loads
+and how it is checked, so everything about a phase is in one place. A new phase
+is a new `tpcdi/phaseNN_name.py` exporting `NUMBER`, `TITLE`, `DESCRIPTION`,
+`run()` and `verify()`, listed in `tpcdi/__init__.py`.
 
 The TPC tools are not redistributed: download `TPC-DI_Tools_v1.1.0.zip` from
 tpc.org and unpack it into `tools/` so that `tools/Tools/DIGen.jar` exists.
