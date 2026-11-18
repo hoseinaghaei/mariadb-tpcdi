@@ -1,0 +1,22 @@
+# TPC-provided tools.  Redistribution is not ours to grant -- every group
+# member downloads TPC-DI_Tools_v1.1.0.zip from tpc.org under their own
+# acceptance of the TPC licence.  tools/MANIFEST.md records what is in it.
+tools/*
+!tools/MANIFEST.md
+!tools/.gitkeep
+
+# Generated source data.  Large, and reproducible from DIGen at a given
+# scale factor, so it is never committed.
+staging/
+*.dat
+digen_report.txt
+
+# Run output
+results/
+*.log
+
+# Local
+.DS_Store
+__pycache__/
+*.pyc
+.venv/
