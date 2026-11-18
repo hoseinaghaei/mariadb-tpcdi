@@ -207,6 +207,22 @@ factor, which is what Step 12 measures.
 Consistent across operating systems, but every parser must strip `\r` or the last
 field of each row silently carries one. Carried into Phase 3 as a check.
 
+## 7a. Determinism, verified
+
+Phase 2 was re-run end to end into a separate volume on 2026-11-18 and the two
+generations compared. All 475 data files (everything but `digen_report.txt`,
+which carries timestamps) are **byte-for-byte identical**, and the row counts
+match exactly: 7,804,509 / 33,380 / 33,455.
+
+DIGen has no `-RNGSEED` equivalent — unlike `dsdgen` in Part I, where the seed
+was part of the dataset's identity — so this had to be established empirically
+rather than assumed. It means a scale factor alone identifies a dataset, and
+anyone regenerating at SF=5 gets the bytes we measured against.
+
+The second generation reported a different throughput (938,853 rows/s against
+273,054) purely because the first ran against a cold page cache. Generation is
+untimed under Clause 1.2.2.1.1, so this affects nothing.
+
 ## 8. Reproducing this
 
 ```
