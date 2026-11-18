@@ -13,62 +13,80 @@ this plan is organised around the oracles rather than around the code.
 
 ## Correction, 2026-11-18 (Phase 1)
 
-**This section was written before the tools package was in hand. Two of the five
-oracles below do not exist.** `TPC-DI_Tools_v1.1.0.zip` contains DIGen and PDGF
-and no SQL whatsoever — no audit query, no validation query, no visibility
-queries, no comparison tool, no expected result data, no DDL. The specification
-says the appendices come from TPC's download section; that archive is not
-published, and the TPC-DI entry links only the spec PDF and the tools zip
-(verified against the page HTML). See `../tools/MANIFEST.md`.
+This section was written before the tools package was in hand, and has been
+revised twice in one day. The sequence matters, so both revisions are kept.
 
-What survives is oracles 0, 1 and 2. They are enough to build a rigorous
-validation, but we now have to *write* the audit rather than *run* it, and the
-report must say so as a limitation rather than imply we passed TPC's own tests.
+**First:** `TPC-DI_Tools_v1.1.0.zip` turned out to contain DIGen and PDGF and no
+SQL whatsoever. TPC does not publish the appendix archive the specification
+refers to — its current-specifications page links only the spec PDF and the tools
+zip. Oracles 3, 4 and 5 all appeared to be lost.
+
+**Then:** three of those four files were recovered from public repositories, with
+the provenance evidence set out in `../tools/appendices/PROVENANCE.md` — two
+unrelated repositories holding byte-identical copies in the exact directory
+layout the specification describes, TPC headers intact, portability placeholders
+still unsubstituted, and seven content assertions cross-checked against clauses
+read independently from the PDF.
+
+**Net position: oracles 0–4 available, oracle 5 gone.**
 
 ## The oracles
 
 | # | Oracle | Status | What question it answers |
 |---|---|---|---|
-| 0 | **The specification** | `../spec/tpc-di_v1.1.0.pdf`, Clauses 2.2, 3.2, 4.5, 4.6 | **Available.** What is correct. Definitional, not executable. |
-| 1 | **`digen_report.txt`** | Written by DIGen, must not be edited (Clause 6.3) | **Available.** Did we read every source row? Gives `RH`, `RI1`, `RI2` for the metric. |
-| 2 | **`Audit` table** | `*_audit.csv` in every batch directory (Clause 2.2.2.20) | **Available, and now our primary oracle.** Does what we loaded match what the generator says it generated? Counts, sums and dates per attribute per batch. The PDGF config carries 15 audit definitions, so this data really is produced. |
-| 3 | `tpcdi_validation.sql` | Appendix B | **Not published.** We write our own phase-boundary capture, including the PCR rows the metric is timed from. |
-| 4 | `tpcdi_audit.sql` | Appendix A | **Not published.** We write our own audit suite from Clause 4 and from structural invariants. |
-| 5 | Comparison tool + expected results | Clause 8.2.1.1 | **Not published.** No row-level diff against TPC's output is possible. |
+| 0 | **The specification** | `../spec/tpc-di_v1.1.0.pdf` | **Available.** What is correct. Definitional, not executable. |
+| 1 | **`digen_report.txt`** | Written by DIGen, must not be edited (Clause 6.3) | **Available.** Did we read every source row? Gives `RH`, `RI1`, `RI2`. |
+| 2 | **`Audit` table** | `*_audit.csv` per batch (Clause 2.2.2.20) | **Available.** Does what we loaded match what the generator says it generated? The audit query reads this, so it underpins oracle 4. |
+| 3 | **`tpcdi_validation.sql`** | Recovered, `../tools/appendices/AppendixB/` | **Available.** Phase-boundary capture. Must emit 24 Validation messages per batch across 17 sources, and writes the PCR row the metric is timed from. |
+| 4 | **`tpcdi_audit.sql`** | Recovered, `../tools/appendices/AppendixA/` | **Available. The oracle.** 130 tests, pass/fail. |
+| — | `tpcdi_visibility_1/2.sql` | Recovered, `../tools/appendices/AppendixC/` | **Available.** Required during the Incremental Updates (Clause 7.3). |
+| 5 | Comparison tool + expected results | Clause 8.2.1.1 | **Not published, not recovered.** No row-level diff against TPC's own output. |
 
-### What replaces oracles 3–5
+### What the audit query actually tests
 
-Three things, in descending order of strength:
+130 tests, weighted heavily toward the slowly-changing dimensions — DimCustomer
+23, DimAccount 15, DimTrade 14, DimSecurity 13, DimCompany 13, FactHoldings 8,
+and the rest in single figures. They fall into four kinds:
 
-1. **The `Audit` table (oracle 2).** The generator's own ground truth: row counts
-   and sums per attribute per batch, for Account, Customer, CustomerMgmt,
-   DailyMarket, Date, FINWIRE, HR, Industry, Prospect, StatusType, TaxRate, Time,
-   TradeType, WatchHistory and a General set. Every load step gets checked
-   against it. This is genuinely strong — it is not our own arithmetic restated.
+- **Row counts and sums against the `Audit` table.** Oracle 2 is the ground truth
+  the audit query compares to, which is why Step 4 loads it first.
+- **SCD-2 chain integrity**, by name: `Overlap`, `End of Time`, `consolidation`,
+  `IsCurrent`, `EffectiveDate`, `EndDate`. The invariants listed below are not
+  our invention — the audit tests them directly.
+- **Key uniqueness**, e.g. `distinct keys` per dimension.
+- **`DImessages` structure**: 4 PCR records, batches 0–3, 24 validation messages
+  per batch, 17 sources, and all tables empty before Batch1.
 
-2. **Structural invariants derived from Clause 4.** These hold regardless of
-   data and are cheap to assert continuously:
-   - SCD-2 chain integrity: for each natural key exactly one `IsCurrent = TRUE`;
-     each row's `EndDate` equals its successor's `EffectiveDate`; no gaps, no
-     overlaps; current rows end `9999-12-31` (Clause 4.4.1.2).
-   - Daily grain: at most one row per natural key per day (Clause 4.4.1.5).
-   - Every surrogate key in Table 4.3 resolves, and resolves to the row *current
-     at the referencing row's date*, not the latest row.
-   - The fifteen Clause 8.2.2.2 extract queries all parse and run — a free check
-     that our column names match the spec's spelling exactly.
-   - `DImessages` alert text matches the exact strings Clause 4 prescribes.
+**Two consequences for how we build.** The `Audit` table must be loaded before
+anything can be verified. And `DImessages` is not a log we write for ourselves —
+its contents are tested, down to counts, so the validation query has to be wired
+in from the first table we load rather than bolted on at the end.
 
-3. **Independent reimplementations, as corroboration only.** Several public
-   projects reconstructed the schema and audit logic from the same spec
-   (`shannon-barrow/databricks-tpc-di`, `stewartbryson/dbt-tpcdi`,
-   `haydarai/tpcdi-kit`). Agreeing row counts with an independent implementation
-   at the same scale factor is real evidence. Disagreeing is a prompt to re-read
-   the clause, not proof either side is wrong. Never cite these as authority.
+### What still has to substitute for oracle 5
 
-**SF = 5 is still the correctness scale factor.** Clause 8.1.3 fixes
-qualification data at SF=5 and the DIGen default is also 5, so it stays the size
-we iterate on — now because it is small and fast rather than because expected
-results exist for it.
+Without a row-level diff, two things carry the weight:
+
+1. **The structural invariants below**, asserted continuously rather than once at
+   the end. The audit query checks most of them, but only after a full phase;
+   running them per table while building is what keeps errors cheap.
+2. **Independent reimplementations, as corroboration only.** Agreeing row counts
+   with `QasimKhan5x/TPC-DI` (MySQL, closest to our architecture) or the
+   Databricks implementations is real evidence. Disagreeing is a prompt to re-read
+   the clause. Never authority — Qasim's own README says it does not yet pass the
+   audit.
+
+The invariants worth asserting as we go:
+- SCD-2 chain integrity: for each natural key exactly one `IsCurrent = TRUE`;
+  each row's `EndDate` equals its successor's `EffectiveDate`; no gaps, no
+  overlaps; current rows end `9999-12-31` (Clause 4.4.1.2).
+- Daily grain: at most one row per natural key per day (Clause 4.4.1.5).
+- Every surrogate key in Table 4.3 resolves, and resolves to the row *current at
+  the referencing row's date*, not the latest row.
+- The fifteen Clause 8.2.2.2 extract queries all parse and run.
+- `DImessages` alert text matches the exact strings Clause 4 prescribes.
+
+**SF = 5 remains the correctness scale factor** — Clause 8.1.3 fixes
+qualification data there and the DIGen default is also 5.
 
 ## The steps
 
@@ -90,8 +108,14 @@ Answers to the three questions it had to settle:
 Also recovered: the authoritative DIGen usage (`-sf` default 5, range 3 to
 2147483647) and the generation schema's scaling constants.
 
-**Consequence:** the plan's oracle structure changed. See the correction above.
-Steps 3, 4 and 10 are affected.
+**Then recovered what was missing.** The audit, validation and visibility queries
+were found in public repositories and verified — see `../tools/appendices/PROVENANCE.md`.
+A MySQL implementation's DDL for all 20 tables is kept under `../reference/` as a
+cross-check, not a source.
+
+**Consequence:** oracles 3 and 4 are restored; oracle 5 is not. Step 10 goes back
+to running TPC's audit. Step 3 gains a cross-check. Step 4 becomes load-bearing,
+because the audit query reads the `Audit` table for most of its comparisons.
 
 ### Step 2 — Generate at SF=5 inside a container
 
@@ -252,31 +276,26 @@ quarters of FINWIRE EPS, and yield from the security's dividend.
 
 ---
 
-### Step 10 — Build and pass our own audit at SF=5
+### Step 10 — Pass TPC's audit at SF=5
 
-**Revised.** The original plan was "run `tpcdi_audit.sql`". That file does not
-exist, so this step is now authorship as well as verification.
+**Do.** Adapt the four recovered appendix files to MariaDB. The header in each
+names the substitutions required: `FROM DUMMY_TABLE` becomes blank or `from dual`
+depending on dialect, and `||` becomes the concatenation form the engine uses.
+MariaDB in `PIPES_AS_CONCAT` mode keeps `||`, which is the same session setting
+Part I needed for four TPC-DS queries — so that lesson transfers directly.
 
-**Do.** Write `sql/di/audit.sql` — our reconstruction of the Clause 7.2.6 audit —
-as a set of named tests each returning OK or FAIL, covering:
-- every row count and sum in the `Audit` table versus the warehouse;
-- the structural invariants listed under "What replaces oracles 3–5";
-- the `DImessages` alert rows Clause 4 prescribes, by exact text;
-- referential integrity across all of Table 4.3.
+Wire `tpcdi_validation.sql` in as the end-of-phase step it is, writing the PCR
+row, and run `tpcdi_audit.sql` after the audit table is loaded.
 
-Also write `sql/di/validation.sql`, our phase-boundary capture, which must write
-the PCR row because Clause 7.5.1 times the run from it.
+**Validate against.** Oracle 4, backed by oracle 2.
 
-**Validate against.** Oracles 0, 1 and 2.
+**Check.** All **130** tests report OK. Diff our adaptation against the pristine
+file to prove the only changes are the prescribed substitutions — the audit is
+worthless if we quietly softened a test to make it pass. Keep the pristine copies
+read-only and generate the adapted ones, so the diff is always available.
 
-**Check.** Every test reports OK at SF=5. Then cross-check the headline row
-counts against an independent public implementation at the same scale factor —
-corroboration, not authority.
-
-**This is still the milestone.** Everything before it is construction; everything
-after it is measurement. Nothing gets optimised before it passes. And the report
-must be explicit that this audit is ours, reconstructed from the specification,
-not TPC's supplied one — the distinction matters to anyone reading our numbers.
+**This is the milestone.** Everything before it is construction; everything after
+it is measurement. Nothing gets optimised before it passes.
 
 ### Step 11 — Incremental Updates
 
@@ -356,20 +375,23 @@ let the tests gate the push rather than decorate it.
 
 ## What this plan assumes, and should be revisited if wrong
 
-Updated after Phase 1. Resolved:
+Resolved during Phase 1:
 
-- ~~That the tools zip contains the four appendix SQL files.~~ **It does not.**
-- ~~That the comparison tool and expected results are obtainable.~~ **They are
-  not published.** Oracle 5 is gone; Step 10 rests on our own audit suite.
+- ~~The tools zip contains the appendix SQL.~~ **It does not** — but the files
+  were recovered elsewhere and verified. Oracles 3 and 4 are available.
+- ~~The comparison tool and expected results are obtainable.~~ **They are not**,
+  from TPC or from any repository searched. Oracle 5 is gone for good.
 
 Still open:
 
-- That DIGen needs Java ≤ 1.8. The vendor README says 7 or above; third parties
-  say otherwise. Settled in Step 2 by running it.
-- That SF=5 data is small enough to iterate on quickly. The scaling constants
-  suggest it is very small, but they also contradict the "SF 10 ≈ 1 GB" figure
-  from third-party repositories, so neither is trusted until `digen_report.txt`
-  exists.
-- That the `*_audit.csv` files carry enough coverage to serve as the primary
-  oracle. The generator ships 15 audit definitions, which looks sufficient, but
-  what they actually contain is unseen until Step 2.
+- That DIGen needs Java ≤ 1.8. Its README says 7 or above. Settled in Step 2.
+- That SF=5 is small enough to iterate on quickly. The scaling constants suggest
+  very small, and contradict the third-party "SF 10 ≈ 1 GB"; `digen_report.txt`
+  settles it.
+- That the `*_audit.csv` files carry the attributes the audit query reads. The
+  audit query references `Audit` by `DataSet` and `Attribute` — e.g.
+  `DataSet = 'DimBroker' and Attribute = 'HR_BROKERS'` — so Step 2 should dump
+  the distinct pairs and confirm they are all present before building against
+  them.
+- That the recovered appendices are unmodified. The evidence is strong but it is
+  evidence, not a receipt from TPC. Stated as such in the report.

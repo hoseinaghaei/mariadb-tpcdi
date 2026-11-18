@@ -59,6 +59,14 @@ Consistent with this, tpc.org states there are no published TPC-DI results. The
 appendices and comparison tool appear to have been prepared for auditors and
 never released. Treat them as unavailable.
 
+## Update: the missing SQL was recovered elsewhere
+
+The four appendix files are now in `appendices/`, recovered from public
+repositories and verified. See `appendices/PROVENANCE.md` for the evidence and
+for what is still missing (the comparison tool and expected result data, which
+were found nowhere). This does not change the finding above: TPC's package does
+not contain them.
+
 ## DIGen usage, from `Tools/README.txt` — authoritative, not third-party
 
 ```
