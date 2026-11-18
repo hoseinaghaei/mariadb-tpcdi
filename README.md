@@ -55,10 +55,11 @@ tpc.org and unpack it into `tools/` so that `tools/Tools/DIGen.jar` exists.
 | 2 | Generate the source data | done |
 | 3 | Create the warehouse schema | done |
 | 4 | Load the Audit and reference tables | done |
-| 5+ | The historical load | next |
+| 5 | DimBroker from HR.csv | done |
+| 6+ | FINWIRE, the XML replay, the facts | next |
 
-51 verification checks pass at SF=3 and SF=5. TPC's audit query reports
-114 of 166 tests OK; the rest need the data later phases load.
+69 verification checks pass at SF=3 and SF=5. TPC's audit query reports
+116 of 167 tests OK; the rest need the data later phases load.
 
 ## The one thing to know before reading anything else
 

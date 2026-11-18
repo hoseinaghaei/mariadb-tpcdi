@@ -162,7 +162,7 @@ the type Clause 3.2.19 gives it.
 
 ---
 
-### Phase 5 — DimBroker from HR.csv — NEXT
+### Phase 5 — DimBroker from HR.csv — DONE
 
 **Goal.** The smallest real transformation: read `HR.csv`, keep the brokers,
 assign surrogate keys, write `DImessages`. It exercises the whole pipeline
@@ -181,14 +181,17 @@ EmployeeBranch, EmployeeOffice, EmployeePhone. Every row gets `IsCurrent = 1`,
 `EffectiveDate` = the earliest date in `DimDate`, `EndDate = 9999-12-31`
 (4.4.1.2), `BatchID = 1`.
 
-**Done when**
-- `DimBroker` row count equals `Audit.HR_BROKERS` — 7,144 at SF=5, 4,293 at SF=3
-- every `SK_BrokerID` is distinct
-- every row has `IsCurrent = 1` and `EndDate = 9999-12-31`
-- the audit query's six `DimBroker` tests all report OK
-- the total OK count has risen from the 114 of 166 baseline
+**Done when** all of that holds. It does: 18 checks, 7,144 rows at SF=5 and
+4,293 at SF=3, all six audit tests OK.
 
-### Phase 6 — FINWIRE: DimCompany, DimSecurity, Financial
+**What it established for the phases after it:** auxiliary tables live in a
+separate `tpcdi_stage` database so the warehouse keeps exactly its twenty
+tables; surrogate keys come from `ROW_NUMBER` over the natural key, which is
+deterministic so two runs stay comparable; and an *empty* table passes most of
+this audit, so a rising OK count is not evidence of progress — read the
+per-table tests instead.
+
+### Phase 6 — FINWIRE: DimCompany, DimSecurity, Financial — NEXT
 
 **Goal.** Parse 203 quarterly fixed-width files with three record layouts
 interleaved, and build the first genuinely slowly-changing dimensions.

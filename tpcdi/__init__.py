@@ -5,9 +5,11 @@ everything about a phase is in one place.  Add a phase by writing
 tpcdi/phaseNN_name.py with NUMBER, TITLE, DESCRIPTION, run() and verify(),
 then listing it in PHASES below.
 """
-from . import phase02_generate, phase03_schema, phase04_reference
+from . import (phase02_generate, phase03_schema, phase04_reference,
+               phase05_broker)
 
-PHASES = [phase02_generate, phase03_schema, phase04_reference]
+PHASES = [phase02_generate, phase03_schema, phase04_reference,
+          phase05_broker]
 
 __all__ = ["PHASES"]
 
