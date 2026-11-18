@@ -3,6 +3,8 @@
 # acceptance of the TPC licence.  tools/MANIFEST.md records what is in it.
 tools/*
 !tools/MANIFEST.md
+!tools/appendices/
+!tools/appendices/**
 !tools/.gitkeep
 
 # Generated source data.  Large, and reproducible from DIGen at a given
