@@ -26,3 +26,6 @@ __pycache__/
 # PyCharm: keep the shared run configurations, ignore the rest
 .idea/*
 !.idea/runConfigurations/
+
+# Ad-hoc query scratchpad, not part of the pipeline
+scratch/

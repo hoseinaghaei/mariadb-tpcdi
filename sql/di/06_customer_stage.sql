@@ -127,3 +127,9 @@ CREATE TABLE tpcdi_stage.stg_cmg_account_event (
 
 select *
 from tpcdi_stage.stg_cmg_account_event;
+
+
+select *
+from stg_cmg_customer;
+select *
+from stg_cmg_account;

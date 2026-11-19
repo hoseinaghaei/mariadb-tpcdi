@@ -195,6 +195,24 @@ def verify(scale, c: Checks):
             where a.CA_ID = e.CA_ID and a.C_ID = e.C_ID and a.seq < e.seq)""", "?")
     c.want(orphan == "0", "every cascade event follows an account the customer owns",
            f" -- {orphan} do not")
+    # seq is per ACTION, not per account, so it is deliberately not unique:
+    # Clause 4.5.4.1 allows NEW and ADDACCT to carry several <Account>
+    # elements.  That is harmless, because the forward-fill partitions by
+    # CA_ID and orders by seq WITHIN the partition -- two different accounts
+    # sharing a seq are in different partitions and never compete.
+    #
+    # What would break it is the same CA_ID appearing twice in one action.
+    # Then the ordering inside that partition is ambiguous and the carry
+    # becomes non-deterministic, silently, with row counts still correct.
+    # At SF=5 every action happens to carry exactly one account, so this
+    # never fires -- which is precisely why it is asserted rather than
+    # assumed.
+    dup = scalar(ctr, """select count(*) from (
+        select CA_ID, seq from tpcdi_stage.stg_cmg_account_event
+        group by 1, 2 having count(*) > 1) x""", "?")
+    c.want(dup == "0", "(CA_ID, seq) is unique, so the per-account order is total",
+           f" -- {dup} pairs repeat; the forward-fill would be ambiguous")
+
     closed = scalar(ctr, """select count(*) from tpcdi_stage.stg_cmg_account_event e
         join (select CA_ID, min(case when ActionType='CLOSEACCT' then seq end) closed
               from tpcdi_stage.stg_cmg_account group by CA_ID) x on x.CA_ID = e.CA_ID
