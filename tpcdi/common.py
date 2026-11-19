@@ -92,6 +92,22 @@ def container_exists(name):
     return bool(docker("ps", "-a", "-q", "-f", f"name=^{name}$").stdout.strip())
 
 
+def remove_container(name, graceful=True):
+    """Remove a container, stopping it cleanly first.
+
+    `docker rm -f` sends SIGKILL, which leaves InnoDB to do crash recovery on
+    the next start.  The settings in the image make committed rows durable
+    anyway (innodb_flush_log_at_trx_commit=1, doublewrite on), but there is no
+    reason to rely on that when a clean shutdown costs a couple of seconds --
+    and a warehouse that has to be reloaded is a measurement lost.
+    """
+    if not container_exists(name):
+        return
+    if graceful and container_running(name):
+        docker("stop", "-t", "30", name, check=False)
+    docker("rm", "-f", name, check=False)
+
+
 def in_alpine(volume, shell_cmd, mount="/s"):
     """Run a shell command in alpine with a volume mounted read-only."""
     return docker("run", "--rm", "-v", f"{volume}:{mount}:ro", ALPINE,

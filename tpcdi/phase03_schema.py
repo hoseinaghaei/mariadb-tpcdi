@@ -11,7 +11,7 @@ import tempfile
 from .common import (APPENDIX_DIR, DB, DB_PASSWORD, MARIADB_IMAGE, ROOT,
                      Checks, Fail,
                      audit_summary, container, container_running, docker,
-                     mariadb, may_replace, run_appendix, scalar,
+                     mariadb, may_replace, remove_container, run_appendix, scalar,
                      staging_volume, volume_exists, wait_for_server,
                      warehouse_volume)
 
@@ -31,7 +31,7 @@ APPENDIX_QUERIES = ("tpcdi_visibility_1", "tpcdi_visibility_2",
                     "tpcdi_validation", "tpcdi_audit", "tpcdi_audit.innerjoin")
 
 
-def run(scale, force=False, keep=False):
+def run(scale, force=False, keep=False, port=None, **_opts):
     vol, ctr = warehouse_volume(scale), container(scale)
     stage = staging_volume(scale)
     if not os.path.isfile(DDL):
@@ -46,10 +46,10 @@ def run(scale, force=False, keep=False):
         if not may_replace(f"A warehouse for scale factor {scale}",
                            detail, force, keep):
             return
-        docker("rm", "-f", ctr, check=False)
+        remove_container(ctr)
         docker("volume", "rm", "-f", vol)
 
-    docker("rm", "-f", ctr, check=False)
+    remove_container(ctr)
     docker("volume", "create", vol)
 
     # The staging area is mounted read-only so LOAD DATA INFILE can reach the
@@ -61,6 +61,13 @@ def run(scale, force=False, keep=False):
         print(f"  mounting {stage} at /staging (read-only)")
     else:
         print(f"  note: no staging volume '{stage}' yet -- run phase 2 first")
+
+    # Nothing is published by default: the server is reached with docker exec,
+    # so it cannot collide with anything already on the host.  --port opens it
+    # on 127.0.0.1 only, for a GUI client; never on 0.0.0.0.
+    if port:
+        mounts += ["-p", f"127.0.0.1:{port}:3306"]
+        print(f"  publishing 127.0.0.1:{port} -> 3306")
 
     print(f"\nStarting {MARIADB_IMAGE} as {ctr} ...")
     docker("run", "-d", "--name", ctr,
@@ -74,6 +81,8 @@ def run(scale, force=False, keep=False):
     n = scalar(ctr, "select count(*) from information_schema.tables "
                     f"where table_schema='{DB}'")
     print(f"\nCreated {n} tables in database '{DB}'.")
+    if port:
+        print(f"    mariadb://root:{DB_PASSWORD}@127.0.0.1:{port}/{DB}")
 
 
 # ---------------------------------------------------------------- checks ---

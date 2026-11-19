@@ -60,6 +60,9 @@ def main():
                     help="replace existing data without asking")
     ap.add_argument("--keep", action="store_true",
                     help="never replace anything that already exists")
+    ap.add_argument("--port", type=int, metavar="N",
+                    help="publish MariaDB on 127.0.0.1:N for a GUI client "
+                         "(phase 3; recreates the container)")
     ap.add_argument("--verify", action="store_true",
                     help="verify without changing anything")
     a = ap.parse_args()
@@ -76,7 +79,7 @@ def main():
         if a.phase is not None and mod.NUMBER != a.phase:
             continue
         banner(mod.NUMBER, mod.DESCRIPTION)
-        mod.run(a.scale, a.force, a.keep)
+        mod.run(a.scale, a.force, a.keep, port=a.port)
 
     print(f"\nVerify with:\n    python verify_di.py --scale {a.scale}")
     return 0

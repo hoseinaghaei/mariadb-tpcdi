@@ -29,7 +29,7 @@ AUDIT_TESTS = ["DimBroker row count", "DimBroker distinct keys",
                "DimBroker EffectiveDate", "DimBroker EndDate"]
 
 
-def run(scale, force=False, keep=False):
+def run(scale, force=False, keep=False, **_opts):
     ctr, stagedir = container(scale), staging_dir(scale)
     if not container_running(ctr):
         raise Fail(f"{ctr} is not running.  Run phase 3 first.")

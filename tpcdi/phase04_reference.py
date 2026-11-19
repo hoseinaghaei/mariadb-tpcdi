@@ -26,7 +26,7 @@ REFERENCE_TABLES = [("DimDate", "Date.txt"), ("DimTime", "Time.txt"),
 ALL_TABLES = ["Audit"] + [t for t, _ in REFERENCE_TABLES]
 
 
-def run(scale, force=False, keep=False):
+def run(scale, force=False, keep=False, **_opts):
     ctr, stagedir = container(scale), staging_dir(scale)
     if not container_running(ctr):
         raise Fail(f"{ctr} is not running.  Run phase 3 first.")

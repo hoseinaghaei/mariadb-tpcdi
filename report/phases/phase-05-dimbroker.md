@@ -137,6 +137,61 @@ row, since Clause 4.5.2 does not require one — would have kept the number
 tidier while hiding a real requirement. Making the audit look better by writing
 less is the same mistake as softening it.
 
+## 7a. Two discrepancies worth recording
+
+### The audit query contradicts itself about EffectiveDate
+
+Clause 4.5.2.1 says:
+
+> "EffectiveDate is set to the **earliest date in the DimDate table** and
+> EndDate is set to 9999-12-31."
+
+TPC's audit query tests that correctly, against a literal:
+
+```sql
+select 'DimBroker EffectiveDate', NULL, case when
+    (select count(*) from DimBroker where EffectiveDate <> '1950-01-01') = 0
+then 'OK' else 'Wrong date' end, 'All rows have Batch1 BatchDate as EffectiveDate'
+```
+
+`1950-01-01` is indeed the earliest date in `DimDate`, so the test agrees with
+the clause. **Its description string does not.** "Batch1 BatchDate as
+EffectiveDate" names a different value: Batch1's BatchDate is `2017-07-07`,
+sixty-seven years later. Anyone implementing from the description rather than
+the clause would fail the test.
+
+The implementation follows the clause, reading `min(DateValue)` from `DimDate`
+rather than hard-coding a date, and check B3 compares against the table the
+same way. If the generator's date range ever changed, our code would follow the
+rule and TPC's literal would be the thing that broke.
+
+### A warehouse lost its Phase 5 data, and I cannot account for it
+
+Between a passing `69 of 69` run and the next look at the database, `DimBroker`
+and `DImessages` in the SF=5 warehouse were both empty, while everything Phase
+4 had loaded survived and the SF=3 warehouse was untouched.
+
+What was ruled out: the Docker VM had not restarted (5.2 hours' uptime), the
+SF=3 container had been running since 20:37 with its 4,293 rows intact, and the
+image's durability settings are the safe ones --
+`innodb_flush_log_at_trx_commit=1`, `innodb_doublewrite=ON`,
+`innodb_flush_method=O_DIRECT` -- so a committed row should survive even an
+abrupt kill. No command run in between touches the database.
+
+It did not recur: reloading, then stopping and starting the container cleanly,
+leaves all 7,144 rows in place.
+
+So this is recorded as unexplained rather than explained away. Two things
+changed as a result, both of which are worth having regardless:
+
+- `common.remove_container()` now stops a container with a 30-second timeout
+  before removing it. `docker rm -f` sends SIGKILL and leaves InnoDB to do
+  crash recovery on the next start; a clean shutdown costs two seconds, and a
+  warehouse that has to be reloaded is a measurement lost.
+- Before Phase 13 records any timing, the run must end with a clean shutdown
+  and a re-verification, so that a number is never reported from a warehouse
+  whose state was not confirmed afterwards.
+
 ## 8. What this phase settles for later work
 
 - **The pipeline shape works**: staging table in `tpcdi_stage`, set-based
@@ -151,6 +206,9 @@ less is the same mistake as softening it.
   tests, which is what B6 does.
 - **Any batch written to `DImessages` owes 24 validation messages.** Phase 10
   settles this for batches 1, 2 and 3.
+- **Read rules from the clause, not from the audit query's prose.** The
+  `EffectiveDate` description is wrong where its own test is right.
+- **Containers are stopped, not killed.** See 7a.
 
 ## 9. Reproducing this
 

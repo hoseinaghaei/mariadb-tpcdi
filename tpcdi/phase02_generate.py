@@ -7,7 +7,8 @@ import subprocess
 import time
 
 from .common import (DIGEN_IMAGE, ROOT, Checks, Fail, container, container_exists,
-                     docker, in_alpine, may_replace, staging_volume,
+                     docker, in_alpine, may_replace, remove_container,
+                     staging_volume,
                      volume_exists, warehouse_volume)
 
 NUMBER = 2
@@ -15,7 +16,7 @@ TITLE = "source data"
 DESCRIPTION = "generate the source data with DIGen"
 
 
-def run(scale, force=False, keep=False):
+def run(scale, force=False, keep=False, **_opts):
     vol = staging_volume(scale)
     jar = os.path.join(ROOT, "tools", "Tools", "DIGen.jar")
     if not os.path.isfile(jar):
@@ -38,7 +39,7 @@ def run(scale, force=False, keep=False):
         if container_exists(ctr):
             print(f"  removing {ctr} first -- it holds {vol} open")
             print("  (phase 3 recreates it; the warehouse is rebuilt from scratch)")
-            docker("rm", "-f", ctr, check=False)
+            remove_container(ctr)
             docker("volume", "rm", "-f", warehouse_volume(scale), check=False)
         docker("volume", "rm", "-f", vol)
 
