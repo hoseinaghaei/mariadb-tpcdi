@@ -22,3 +22,7 @@ results/
 __pycache__/
 *.pyc
 .venv/
+
+# PyCharm: keep the shared run configurations, ignore the rest
+.idea/*
+!.idea/runConfigurations/
