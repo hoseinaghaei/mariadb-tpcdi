@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="SqlDialectMappings">
-    <file url="file://$PROJECT_DIR$/sql/di/03_dimbroker.sql" dialect="MariaDB" />
+    <file url="file://$PROJECT_DIR$/sql/di/03_dimbroker.sql" dialect="SparkSQL" />
+    <file url="file://$PROJECT_DIR$/sql/di/04_finwire_stage.sql" dialect="MariaDB" />
+    <file url="file://$PROJECT_DIR$/sql/di/05_finwire_transform.sql" dialect="GenericSQL" />
+    <file url="file://$PROJECT_DIR$/tpcdi/phase06_finwire.py" dialect="GenericSQL" />
   </component>
 </project>

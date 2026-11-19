@@ -319,7 +319,11 @@ def verify(scale, c: Checks):
         if len(r) >= 3 and (r[0] not in results or r[1] in ("1", "NULL")):
             results[r[0]] = r[2]
     failed = [t for t in AUDIT_TESTS if results.get(t) != "OK"]
-    c.want(not failed, f"all {len(AUDIT_TESTS)} tests report OK",
+    # "for batch 1" is not a detail.  The row-count tests also run for batches
+    # 2 and 3, where they fail because those batches are not loaded until
+    # Phase 11, and only the batch-1 row is taken above.  Saying "all 32 pass"
+    # without that qualification would be claiming more than was checked.
+    c.want(not failed, f"all {len(AUDIT_TESTS)} tests report OK for batch 1",
            f" -- failing: {failed}")
     ok_n = sum(1 for r in rows if len(r) >= 3 and r[2] == "OK")
     print(f"        whole suite: {ok_n} of {len(rows)} OK")
