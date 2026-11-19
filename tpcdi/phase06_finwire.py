@@ -22,7 +22,7 @@ from . import finwire
 from .common import (ALPINE, DB, DB_PASSWORD, ROOT, Checks, Fail, container,
                      container_running, docker, in_alpine, mariadb,
                      may_replace, run_appendix, run_audit_after_validation,
-                     run_sql_text, scalar,
+                     read_sql, run_sql_text, scalar,
                      staging_dir, staging_volume)
 
 NUMBER = 6
@@ -164,8 +164,7 @@ def _parse_and_stage(ctr, scale):
 def _transform(ctr):
     print("Transforming ...")
     started = time.time()
-    with open(TRANSFORM_SQL, encoding="utf-8") as fh:
-        run_sql_text(ctr, fh.read())
+    run_sql_text(ctr, read_sql(TRANSFORM_SQL))
     print(f"  done in {time.time() - started:.1f}s")
 
 

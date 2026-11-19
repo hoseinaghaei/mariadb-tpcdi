@@ -260,7 +260,7 @@ Python parses gets into the server: no temporary file, no writable mount, no
 validation query inside a rolled-back transaction, so a phase can check audit
 tests that depend on Phase 10's messages without waiting for Phase 10.
 
-### Phase 7 — CustomerMgmt.xml: DimCustomer, DimAccount — NEXT
+### Phase 7 — Prospect, DimCustomer, DimAccount — DONE
 
 **Goal.** Replay a hierarchical transaction stream to derive historical state.
 
@@ -278,20 +278,29 @@ try to do it in SQL, and do not pull rows into Python one at a time.
 customer row rather than the one current at the account's effective date. A
 foreign key will not catch it. Write a query that does.
 
-**Done when**
-- the counts match `Audit`: `C_NEW`, `C_UPDCUST`, `C_INACT`, `CA_ADDACCT`,
-  `CA_UPDACCT`, `CA_CLOSEACCT`
-- the data-quality alerts match: `C_DOB_TO` (10 at SF=5), `C_DOB_TY` (16),
-  `C_TIER_INV` (380). These are deliberately broken records and the ETL must
-  write `DImessages` alerts with the exact text Clause 4 prescribes. Loading
-  them silently is a failure
-- the same SCD-2 invariants as Phase 6
-- the audit's 23 `DimCustomer` and 15 `DimAccount` tests report OK
+**Done when** all of that holds. It does: 40 checks, all 39 audit tests for
+the three tables OK, at SF=5 and SF=3.
 
-### Phase 8 — The fact tables
+**Prospect moved here from Phase 8.** It and DimCustomer are circular —
+DimCustomer reads its demographics, Prospect.IsCustomer reads DimCustomer —
+and Clause 4.5.15.1 resolves that by putting IsCustomer last. The whole cycle
+lives in one phase so that "Phase 7 is done" means something.
+
+**What it established.** The cascade must reach accounts that have already
+*closed*: Clause 4.5.4.3 says "all current accounts" but 4.5.1.3 says "each
+account held by the customer", and the audit's containment test sides with the
+latter — bounding it at the close left 603 accounts pointing at a superseded
+customer version. The collation is `utf8mb4_uca1400_ai_ci`, so `UPPER()` in a
+join predicate buys nothing and costs an index: prefer `<=>`, which is
+NULL-safe and sargable, and which took one step from 129 s to 0.14 s. And a
+check that passes is not the same as a check that is right — one of ours was
+asserting the exact opposite of the rule.
+
+### Phase 8 — The fact tables — NEXT
 
 **Goal.** `DimTrade`, `FactCashBalances`, `FactHoldings`, `FactWatches`, in the
-dependency order of Table 4.3.
+dependency order of Table 4.3. (`Prospect` is no longer part of this phase —
+see Phase 7.)
 
 **Sources.** Clauses 4.5.9 to 4.5.12, and `DimTrade` at 4.5.8 / 3.2.7.1.
 

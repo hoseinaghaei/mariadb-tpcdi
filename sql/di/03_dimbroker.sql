@@ -96,3 +96,7 @@ SELECT CURRENT_TIMESTAMP(3), 1, 'DimBroker', 'Inserted rows', 'Status',
 FROM DimBroker;
 
 DROP TABLE IF EXISTS tpcdi_stage.stg_hr;
+
+-- END OF PIPELINE SQL
+-- Nothing below this line is executed.  Ad-hoc queries are welcome here;
+-- remember to qualify names with tpcdi_stage. or tpcdi. as appropriate.

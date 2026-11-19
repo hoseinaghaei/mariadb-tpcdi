@@ -11,7 +11,7 @@ import os
 
 from .common import (ROOT, Checks, Fail, container, container_running, docker,
                      in_alpine, mariadb, may_replace, run_appendix,
-                     run_sql_text, scalar, staging_dir, staging_volume)
+                     read_sql, run_sql_text, scalar, staging_dir, staging_volume)
 
 NUMBER = 4
 TITLE = "Audit and reference tables"
@@ -73,9 +73,7 @@ def _load_audit(ctr, stagedir):
 
 def _load_reference(ctr, stagedir):
     print(f"\nLoading the reference tables from {stagedir}/Batch1 ...")
-    with open(LOAD_SQL, encoding="utf-8") as fh:
-        text = fh.read().replace("__STAGING__", f"{stagedir}/Batch1")
-    run_sql_text(ctr, text)
+    run_sql_text(ctr, read_sql(LOAD_SQL, staging=f"{stagedir}/Batch1"))
     for table, _ in REFERENCE_TABLES:
         print(f"  {table:<12} {scalar(ctr, f'select count(*) from `{table}`')} rows")
 

@@ -58,10 +58,11 @@ tpc.org and unpack it into `tools/` so that `tools/Tools/DIGen.jar` exists.
 | 4 | Load the Audit and reference tables | done |
 | 5 | DimBroker from HR.csv | done |
 | 6 | FINWIRE: DimCompany, DimSecurity, Financial | done |
-| 7+ | The XML replay, the facts, FactMarketHistory | next |
+| 7 | Prospect, DimCustomer, DimAccount | done |
+| 8+ | The fact tables, FactMarketHistory | next |
 
-100 verification checks pass at SF=3 and SF=5. TPC's audit query reports
-123 of 167 tests OK; the rest need the data later phases load.
+140 verification checks pass at SF=3 and SF=5. TPC's audit query reports
+131 of 167 tests OK; the rest need the data later phases load.
 
 ## The one thing to know before reading anything else
 

@@ -132,3 +132,9 @@ CREATE TABLE tpcdi_stage.stg_cmg_account_event (
     explicit   TINYINT(1)   NOT NULL,
     KEY ix_ev (CA_ID, seq)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- END OF PIPELINE SQL
+-- Nothing below this line is executed.  Ad-hoc queries are welcome here;
+-- remember to qualify names with tpcdi_stage. or tpcdi. as appropriate.
+select *
+from stg_cmg_account_event;

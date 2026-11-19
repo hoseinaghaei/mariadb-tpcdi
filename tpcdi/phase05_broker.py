@@ -12,7 +12,7 @@ import os
 
 from .common import (ROOT, Checks, Fail, container, container_running, docker,
                      in_alpine, mariadb, may_replace, run_appendix,
-                     run_sql_text, scalar, staging_dir, staging_volume)
+                     read_sql, run_sql_text, scalar, staging_dir, staging_volume)
 
 NUMBER = 5
 TITLE = "broker dimension"
@@ -53,9 +53,7 @@ def run(scale, force=False, keep=False, **_opts):
         print("  emptied")
 
     print(f"\nLoading DimBroker from {stagedir}/Batch1/HR.csv ...")
-    with open(LOAD_SQL, encoding="utf-8") as fh:
-        text = fh.read().replace("__STAGING__", f"{stagedir}/Batch1")
-    run_sql_text(ctr, text)
+    run_sql_text(ctr, read_sql(LOAD_SQL, staging=f"{stagedir}/Batch1"))
 
     rows = scalar(ctr, "select count(*) from DimBroker")
     expected = scalar(ctr, "select Value from Audit where DataSet='DimBroker' "

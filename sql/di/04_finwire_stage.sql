@@ -70,3 +70,7 @@ CREATE TABLE tpcdi_stage.stg_fw_fin (
     CoNameOrCIK  VARCHAR(60),
     KEY (CoNameOrCIK, PTS)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- END OF PIPELINE SQL
+-- Nothing below this line is executed.  Ad-hoc queries are welcome here;
+-- remember to qualify names with tpcdi_stage. or tpcdi. as appropriate.

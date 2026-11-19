@@ -4,6 +4,7 @@ Nothing benchmark-specific lives here. Each phase module owns its own loading
 and its own checks; this is only what all of them need.
 """
 import os
+import re
 import subprocess
 import sys
 import time
@@ -127,9 +128,9 @@ def mariadb(ctr, sql=None, sql_file=None, database=DB,
     if sql is not None:
         r = docker(*cmd, "-e", sql, check=False)
     else:
-        with open(sql_file, "rb") as fh:
-            r = subprocess.run(["docker", *cmd], stdin=fh, text=True,
-                               stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        # read_sql, not the raw file: everything below SQL_END is scratch.
+        r = subprocess.run(["docker", *cmd], input=read_sql(sql_file), text=True,
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if check and r.returncode != 0:
         err = (r.stderr or "").strip().splitlines()
         msg = next((l for l in err if l.startswith("ERROR")), "\n".join(err[-3:]))
@@ -141,6 +142,85 @@ def scalar(ctr, sql, default=""):
     out = mariadb(ctr, sql=sql, tabs=True, check=False)
     first = (out or "").strip().splitlines()
     return first[0].strip() if first else default
+
+
+# Statements a pipeline file legitimately contains.  Anything else is
+# someone's scratch query and is dropped -- see read_sql.
+PIPELINE_VERBS = ("create", "drop", "truncate", "insert", "update", "delete",
+                  "load", "alter", "set")
+
+
+def _split_statements(text):
+    """Split on semicolons that are neither inside a string nor a comment.
+
+    Comment-awareness is not optional: these files carry prose like
+    "see report/dimcustomer-rules.md; this file is the implementation",
+    and treating that semicolon as a statement boundary shreds the query
+    that follows it.  Comments are kept in the output -- they are the
+    reason the SQL is readable -- they are only skipped when looking for
+    a boundary.
+    """
+    out, buf = [], []
+    quote = None
+    in_comment = False
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if in_comment:
+            if ch == "\n":
+                in_comment = False
+        elif quote:
+            if ch == quote:
+                quote = None
+        elif ch in "'\"":
+            quote = ch
+        elif ch == "-" and text[i:i + 2] == "--":
+            in_comment = True
+        elif ch == ";":
+            out.append("".join(buf))
+            buf = []
+            i += 1
+            continue
+        buf.append(ch)
+        i += 1
+    if "".join(buf).strip():
+        out.append("".join(buf))
+    return out
+
+
+def _first_verb(statement):
+    """The first SQL word, with comments and blank lines stripped."""
+    lines = []
+    for line in statement.splitlines():
+        line = re.sub(r"--.*$", "", line).strip()
+        if line:
+            lines.append(line)
+    return (lines[0].split()[0].lower() if lines else "")
+
+
+def read_sql(path, **substitutions):
+    """Read a .sql file, keeping only the statements the pipeline owns.
+
+    These files get opened in an IDE and used as scratchpads -- it is the
+    natural thing to do with a .sql file, and it broke a phase three times
+    running.  A stray `select * from stg_cmg_account_event;` has an
+    unqualified name that resolves against `tpcdi` rather than `tpcdi_stage`,
+    fails, and aborts the whole script: tables created, nothing loaded, and
+    an error pointing at the wrong thing.
+
+    A position-based marker did not survive, because the next query was
+    pasted above it.  So the rule is by statement type instead: a pipeline
+    file only ever contains CREATE, DROP, TRUNCATE, INSERT, UPDATE, DELETE,
+    LOAD, ALTER or SET.  A bare SELECT is always someone thinking out loud,
+    wherever in the file it happens to sit, and is dropped.
+    """
+    with open(path, encoding="utf-8") as fh:
+        text = fh.read()
+    for key, value in substitutions.items():
+        text = text.replace(f"__{key.upper()}__", value)
+    kept = [st for st in _split_statements(text)
+            if _first_verb(st) in PIPELINE_VERBS]
+    return ";\n".join(s.strip() for s in kept) + ";\n" if kept else ""
 
 
 def run_sql_text(ctr, text, database=DB):

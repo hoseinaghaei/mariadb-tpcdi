@@ -396,3 +396,7 @@ CREATE TABLE Audit (
     -- 11 integer digits and does not grow with scale factor.
     DValue    DECIMAL(20,5)     NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- END OF PIPELINE SQL
+-- Nothing below this line is executed.  Ad-hoc queries are welcome here;
+-- remember to qualify names with tpcdi_stage. or tpcdi. as appropriate.

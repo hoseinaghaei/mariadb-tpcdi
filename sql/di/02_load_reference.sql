@@ -75,3 +75,7 @@ LOAD DATA INFILE '__STAGING__/TradeType.txt'
   FIELDS TERMINATED BY '|'
   LINES TERMINATED BY '\r\n'
   (TT_ID, TT_NAME, TT_IS_SELL, TT_IS_MRKT);
+
+-- END OF PIPELINE SQL
+-- Nothing below this line is executed.  Ad-hoc queries are welcome here;
+-- remember to qualify names with tpcdi_stage. or tpcdi. as appropriate.

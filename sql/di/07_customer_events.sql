@@ -30,10 +30,18 @@
 TRUNCATE tpcdi_stage.stg_cmg_account_event;
 
 INSERT INTO tpcdi_stage.stg_cmg_account_event
-    (seq, ActionType, ActionTS, C_ID, CA_ID, CA_TAX_ST, CA_B_ID, CA_NAME, explicit)
+(seq, ActionType, ActionTS, C_ID, CA_ID, CA_TAX_ST, CA_B_ID, CA_NAME, explicit)
 
 -- 1. What the XML actually said about an account.
-SELECT seq, ActionType, ActionTS, C_ID, CA_ID, CA_TAX_ST, CA_B_ID, CA_NAME, 1
+SELECT seq,
+       ActionType,
+       ActionTS,
+       C_ID,
+       CA_ID,
+       CA_TAX_ST,
+       CA_B_ID,
+       CA_NAME,
+       1
 FROM tpcdi_stage.stg_cmg_account
 
 UNION ALL
@@ -42,26 +50,31 @@ UNION ALL
 --    action said nothing about them -- the transform carries them forward,
 --    which is the same absent-means-unchanged rule one level up.  `explicit`
 --    = 0 is what lets it tell that apart from a supplied value.
-SELECT a.seq, a.ActionType, a.ActionTS, a.C_ID, life.CA_ID,
-       NULL, NULL, NULL, 0
+SELECT a.seq,
+       a.ActionType,
+       a.ActionTS,
+       a.C_ID,
+       life.CA_ID,
+       NULL,
+       NULL,
+       NULL,
+       0
 FROM tpcdi_stage.stg_cmg_customer a
-JOIN (
-    SELECT CA_ID, C_ID,
-           MIN(CASE WHEN ActionType IN ('NEW','ADDACCT') THEN seq END) AS opened,
-           MIN(CASE WHEN ActionType  = 'CLOSEACCT'       THEN seq END) AS closed
-    FROM tpcdi_stage.stg_cmg_account
-    GROUP BY CA_ID, C_ID
-) life
-  ON life.C_ID = a.C_ID
- -- Strict, and it skips nothing.  A NEW action's customer row and its
- -- account row do share a seq, so this reads as though it would exclude the
- -- account just created -- but an account is opened by NEW or ADDACCT while
- -- a cascade comes from UPDCUST or INACT, and ActionType is single-valued,
- -- so the two can never be the same action.  Measured: > and >= both give
- -- 5,010 rows.  Phase 7 asserts the disjointness this rests on.
- AND a.seq >  life.opened
- -- 4294967295 is INT UNSIGNED's maximum, standing in for "never closed".
- -- A cascade at exactly the closing action does not apply: the account is
- -- no longer current at that point.
- AND a.seq <  COALESCE(life.closed, 4294967295)
-WHERE a.ActionType IN ('UPDCUST','INACT');
+         JOIN (SELECT CA_ID,
+                      C_ID,
+                      MIN(CASE WHEN ActionType IN ('NEW', 'ADDACCT') THEN seq END) AS opened,
+                      MIN(CASE WHEN ActionType = 'CLOSEACCT' THEN seq END)         AS closed
+               FROM tpcdi_stage.stg_cmg_account
+               GROUP BY CA_ID, C_ID) life
+              ON life.C_ID = a.C_ID
+                  -- Strict, and it skips nothing.  A NEW action's customer row and its
+                  -- account row do share a seq, so this reads as though it would exclude the
+                  -- account just created -- but an account is opened by NEW or ADDACCT while
+                  -- a cascade comes from UPDCUST or INACT, and ActionType is single-valued,
+                  -- so the two can never be the same action.  Measured: > and >= both give
+                  -- 5,010 rows.  Phase 7 asserts the disjointness this rests on.
+                  AND a.seq > life.opened
+                  -- 4294967295 is INT UNSIGNED's maximum, standing in for "never closed".
+                  -- A cascade at exactly the closing action does not apply: the account is
+                  -- no longer current at that point.
+WHERE a.ActionType IN ('UPDCUST', 'INACT');
