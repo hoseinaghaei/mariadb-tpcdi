@@ -122,3 +122,8 @@ CREATE TABLE tpcdi_stage.stg_cmg_account_event (
     explicit   TINYINT(1)   NOT NULL,
     KEY ix_ev (CA_ID, seq)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+
+select *
+from tpcdi_stage.stg_cmg_account_event;
