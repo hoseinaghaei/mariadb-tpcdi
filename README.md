@@ -13,6 +13,7 @@ Due **24 December 2026**.
 |---|---|
 | `PHASES.md` | **Start here if you are joining.** What each phase is, what finishes it, and the conventions |
 | `report/00-what-we-have-to-do.md` | What TPC-DI requires, read out of the specification with clause references |
+| `report/file-to-table-mapping.md` | Which source file becomes which table: field layouts, byte offsets, filters, and why each phase reads its data in one pass or in pieces |
 | `report/01-steps-and-validation.md` | The ordered plan, and the oracle that validates each step |
 | `spec/tpc-di_v1.1.0.pdf` | TPC-DI Standard Specification v1.1.0 (November 2014) |
 | `tools/` | `TPC-DI_Tools_v1.1.0.zip` and its contents — not committed, see `tools/MANIFEST.md` |

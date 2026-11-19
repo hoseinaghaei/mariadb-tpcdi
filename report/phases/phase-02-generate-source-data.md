@@ -62,6 +62,17 @@ Three separate obstacles, each of which silently produced no data:
    application`. Hence holding the pipe open for the duration.
 3. **The exit code lies.** See §5.
 
+### How the data is read, and why
+
+**One DIGen invocation, not our choice.** DIGen writes all three batches from a
+single command and offers no way to split the work. 465 MB in 29 s at SF=5.
+Generation is untimed under Clause 1.2.2.1.1, so there would be nothing to gain
+from splitting it even if the option existed.
+
+The output is cached in a named volume per scale factor, so regenerating is
+something you opt into with `--force` rather than something that happens on
+every run.
+
 ## 4. Results
 
 | | |

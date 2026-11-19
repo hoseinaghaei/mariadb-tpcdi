@@ -62,6 +62,22 @@ is taken against. The server is still not published on any port.
 The 238 audit files are enumerated and loaded one at a time — `LOAD DATA` takes
 no wildcard.
 
+### How the data is read, and why
+
+**The `Audit` table: 238 statements, forced.** `LOAD DATA` takes no wildcard,
+so 238 audit files mean 238 statements. They are concatenated into one SQL
+block and sent down a single connection — 238 statements, one round trip. The
+row count is irrelevant here (1,402 in total); the file count is simply a
+constraint of the generator's output layout.
+
+**The reference tables: one `LOAD DATA` each, whole file at a time.** The
+largest is `Time.txt` at 4.8 MB and 86,400 rows. Nothing about these needs
+chunking now or at any scale factor we will reach — they are
+**scale-independent**, as §4 shows.
+
+No rows travel one at a time between Python and the server in either case. The
+whole phase is bulk loads and counts.
+
 ## 4. Results
 
 | Table | Rows (SF=5) | Rows (SF=3) | Source |

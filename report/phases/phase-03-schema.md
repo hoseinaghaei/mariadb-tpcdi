@@ -80,6 +80,17 @@ already present it prints what is there and asks, `--force` replaces without
 asking, `--keep` leaves it, and a non-interactive shell with neither flag is an
 error rather than a guess.
 
+### How the data is read, and why
+
+**No data is read in this phase.** It creates empty tables. The question of one
+pass versus chunking first arises in Phase 4.
+
+Worth recording for the phases that follow: no indexes are created beyond
+primary keys, so the bulk loads in Phases 4 to 9 are not paying to maintain
+secondary indexes while they run. Clause 7.2.3.2 permits auxiliary structures,
+and where one is needed — `FactMarketHistory`'s window is the likely case — it
+should be created deliberately and measured, not assumed.
+
 ## 5. The validation — and why it is not circular
 
 Checking our DDL against our own reading of the spec proves nothing. The real

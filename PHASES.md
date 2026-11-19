@@ -7,6 +7,12 @@ Read `report/00-what-we-have-to-do.md` for what TPC-DI is, and
 `report/01-steps-and-validation.md` for why the plan is shaped this way. This
 file is the working contract.
 
+**`report/file-to-table-mapping.md` is the one you will use daily**: which
+source file becomes which table, the field layouts and byte offsets, the
+filters and discriminators, and why each phase reads its data in one pass or in
+pieces. It is transcribed from the specification with clause numbers, so you
+should not need the PDF to write a phase.
+
 ---
 
 ## The rules
@@ -51,7 +57,19 @@ warehouse lost its Phase 5 tables once for reasons that were never established
 -- see `report/phases/phase-05-dimbroker.md` section 7a -- and a reloaded
 warehouse is a measurement lost.
 
-**10. Say what is measured and what is assumed.** Every phase report ends with
+**10. Say how you read the data, and why.** Every phase states whether it
+reads a source in one pass or in pieces, and what forced the choice. The
+default is one `LOAD DATA` per file then set-based SQL; rows never travel one
+at a time between Python and the server. If you chunk, say what made chunking
+necessary — size, memory, or a correctness rule such as FINWIRE's global
+posting order.
+
+**11. Write the mapping down before you write the code.** `report/file-to-table-mapping.md`
+holds the field layouts, filters, discriminators and byte offsets, transcribed
+from the specification so nobody has to open the PDF. Extend it for your phase
+*first*; the act of writing the table is what catches a field you misread.
+
+**12. Say what is measured and what is assumed.** Every phase report ends with
 what is still unverified. If you inferred something, label it an inference
 until you have measured it.
 
@@ -108,7 +126,8 @@ Follow `report/phases/phase-04-reference-data.md`. Sections:
 
 1. **Goal** — and why this phase is in this position
 2. **Where the inputs come from** — a table of file, clause, what it gives
-3. **How it runs** — the command
+3. **How it runs** — the command, **and how the data is read**: one pass or
+   chunked, and what forced it. Measured sizes and timings, not impressions.
 4. **Results** — the numbers, at both scale factors
 5. **Validations** — a table of check, result, and the command that proves it
 6. **Defects found** — in the data, the tooling, or your own work. Include the

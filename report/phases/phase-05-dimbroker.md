@@ -70,6 +70,23 @@ mean it no longer holds exactly the twenty tables of Clause 3.2 — which the
 Phase 3 checks assert. Keeping them apart means the warehouse stays exactly what
 the specification describes, and the Phase 3 checks keep their meaning.
 
+### How the data is read, and why
+
+**One pass over the whole file.** `HR.csv` is 2.0 MB and 25,000 rows; the phase
+takes **3.7 s** at SF=5 and **1.7 s** at SF=3, most of it container round-trips
+rather than data.
+
+`LOAD DATA` has no `WHERE`, so the filter cannot be applied while reading. The
+file is staged whole and the filter runs as one set-based `INSERT ... SELECT`.
+Staging the 17,856 rows that get discarded costs nothing measurable, and the
+alternative — filtering row by row in Python — would be far slower.
+
+Scaling is linear at roughly 400 KB per unit of scale factor, so SF=100 would
+be 40 MB and 500,000 employees: still one pass, still seconds. **There is no
+scale factor we will plausibly reach at which this phase needs chunking.** The
+phase that will is 9, where `DailyMarket.txt` grows faster than linear and
+needs a window function per security — see `../file-to-table-mapping.md` §5.6.
+
 ## 5. Results
 
 | | SF=5 | SF=3 |
