@@ -213,6 +213,22 @@ def verify(scale, c: Checks):
     c.want(dup == "0", "(CA_ID, seq) is unique, so the per-account order is total",
            f" -- {dup} pairs repeat; the forward-fill would be ambiguous")
 
+    # The cascade join uses a.seq > life.opened, which reads as though it
+    # would skip the account a NEW action creates in that same action -- the
+    # customer row and the account row do share a seq there.  It cannot:
+    # ActionType is single-valued, so an account is opened by a NEW/ADDACCT
+    # action while a cascade comes from an UPDCUST/INACT one, and those are
+    # different actions with different seq values.  Measured: > and >= give
+    # the same 5,010 rows.  Asserted because the equivalence depends on that
+    # disjointness holding, not on anything in the join itself.
+    collide = scalar(ctr, """select count(*) from tpcdi_stage.stg_cmg_customer c
+        join tpcdi_stage.stg_cmg_account a on a.seq = c.seq
+        where c.ActionType in ('UPDCUST','INACT')""", "?")
+    c.want(collide == "0",
+           "no UPDCUST/INACT shares a seq with an account event, so the "
+           "cascade's strict > skips nothing",
+           f" -- {collide} do, and the bound would exclude them")
+
     closed = scalar(ctr, """select count(*) from tpcdi_stage.stg_cmg_account_event e
         join (select CA_ID, min(case when ActionType='CLOSEACCT' then seq end) closed
               from tpcdi_stage.stg_cmg_account group by CA_ID) x on x.CA_ID = e.CA_ID

@@ -1,3 +1,13 @@
+-- ---------------------------------------------------------------------------
+--  DO NOT APPEND QUERIES TO THIS FILE.
+--
+--  It is executed by phase 7.  A trailing SELECT with an unqualified table
+--  name resolves against `tpcdi`, not `tpcdi_stage`, fails with "table
+--  doesn't exist", and aborts the whole script -- the tables get created and
+--  nothing is loaded, with no obvious sign of why.  That has happened twice.
+--
+--  Put ad-hoc queries in scratch/, which is gitignored.
+-- ---------------------------------------------------------------------------
 -- Phase 7, part 1: staging tables for the parsed CustomerMgmt.xml actions.
 --
 -- Columns are the XML's own field names, not the warehouse's, so this half of
@@ -122,14 +132,3 @@ CREATE TABLE tpcdi_stage.stg_cmg_account_event (
     explicit   TINYINT(1)   NOT NULL,
     KEY ix_ev (CA_ID, seq)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-
-
-select *
-from tpcdi_stage.stg_cmg_account_event;
-
-
-select *
-from stg_cmg_customer;
-select *
-from stg_cmg_account;

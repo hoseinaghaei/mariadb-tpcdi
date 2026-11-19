@@ -53,6 +53,12 @@ JOIN (
     GROUP BY CA_ID, C_ID
 ) life
   ON life.C_ID = a.C_ID
+ -- Strict, and it skips nothing.  A NEW action's customer row and its
+ -- account row do share a seq, so this reads as though it would exclude the
+ -- account just created -- but an account is opened by NEW or ADDACCT while
+ -- a cascade comes from UPDCUST or INACT, and ActionType is single-valued,
+ -- so the two can never be the same action.  Measured: > and >= both give
+ -- 5,010 rows.  Phase 7 asserts the disjointness this rests on.
  AND a.seq >  life.opened
  -- 4294967295 is INT UNSIGNED's maximum, standing in for "never closed".
  -- A cascade at exactly the closing action does not apply: the account is
