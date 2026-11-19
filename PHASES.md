@@ -64,12 +64,17 @@ at a time between Python and the server. If you chunk, say what made chunking
 necessary — size, memory, or a correctness rule such as FINWIRE's global
 posting order.
 
-**11. Write the mapping down before you write the code.** `report/file-to-table-mapping.md`
+**11. Read the direction of a comparison, not just its operands.** The audit
+bounds row counts with `<=` for one table and `>=` for another, and the
+difference is the rule. Phase 6 spent most of its time learning that; see
+`report/phases/phase-06-finwire.md` section 6.
+
+**12. Write the mapping down before you write the code.** `report/file-to-table-mapping.md`
 holds the field layouts, filters, discriminators and byte offsets, transcribed
 from the specification so nobody has to open the PDF. Extend it for your phase
 *first*; the act of writing the table is what catches a field you misread.
 
-**12. Say what is measured and what is assumed.** Every phase report ends with
+**13. Say what is measured and what is assumed.** Every phase report ends with
 what is still unverified. If you inferred something, label it an inference
 until you have measured it.
 
@@ -216,7 +221,7 @@ deterministic so two runs stay comparable; and an *empty* table passes most of
 this audit, so a rising OK count is not evidence of progress — read the
 per-table tests instead.
 
-### Phase 6 — FINWIRE: DimCompany, DimSecurity, Financial — NEXT
+### Phase 6 — FINWIRE: DimCompany, DimSecurity, Financial — DONE
 
 **Goal.** Parse 203 quarterly fixed-width files with three record layouts
 interleaved, and build the first genuinely slowly-changing dimensions.
@@ -232,18 +237,21 @@ left. Process in posting-timestamp order, because SCD-2 effective dating
 depends on it. `DimSecurity.SK_CompanyID` must resolve to the `DimCompany` row
 *current at that date*, not the latest one (Table 4.3).
 
-**Done when**
-- every record classifies; none falls through the three types
-- the daily-grain invariant holds: at most one row per natural key per day
-  (4.4.1.5) — `group by CompanyID, EffectiveDate having count(*) > 1` returns
-  nothing
-- SCD-2 chains are intact: exactly one `IsCurrent = 1` per natural key, each
-  `EndDate` equal to the successor's `EffectiveDate`, no gaps, no overlaps
-- row counts and sums match the `Audit` entries for `DimCompany`,
-  `DimSecurity` and `Financial`
-- the audit query's 13 + 13 + 6 tests for those tables report OK
+**Done when** all of that holds. It does: 31 checks, all 32 audit tests for
+the three tables OK, 2,500 / 4,732 / 198,061 rows at SF=5.
 
-### Phase 7 — CustomerMgmt.xml: DimCustomer, DimAccount
+**What it established for the phases after it.** Read the *direction* of an
+audit comparison, not just its operands: `DimCompany row count` is `<=` because
+unchanged records are dropped, `DimSecurity row count` is `>=` because a
+security row is split wherever its company changes, and that `>=` is the only
+thing that reveals the splitting rule — Clause 4.5.6.2 reads like a point
+lookup and is not one. `LOAD DATA LOCAL INFILE '/dev/stdin'` is how anything
+Python parses gets into the server: no temporary file, no writable mount, no
+`secure_file_priv` change. And `common.run_audit_after_validation()` runs the
+validation query inside a rolled-back transaction, so a phase can check audit
+tests that depend on Phase 10's messages without waiting for Phase 10.
+
+### Phase 7 — CustomerMgmt.xml: DimCustomer, DimAccount — NEXT
 
 **Goal.** Replay a hierarchical transaction stream to derive historical state.
 

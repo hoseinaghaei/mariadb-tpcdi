@@ -193,6 +193,33 @@ def run_appendix(ctr, name):
     return rows, error
 
 
+def run_audit_after_validation(ctr):
+    """Run the validation query, then the audit, then roll both back.
+
+    Several audit tests compare a table against a 'Row count' Validation
+    message rather than against the table itself, so they cannot pass until
+    tpcdi_validation.sql has run -- which is Phase 10's job.  Rather than
+    defer those checks, the validation query is run inside a transaction so
+    the audit sees its messages, and the whole thing is rolled back.  The
+    warehouse is unchanged; the tests become answerable now.
+    """
+    import os
+    parts = ["START TRANSACTION;"]
+    for name in ("tpcdi_validation", "tpcdi_audit"):
+        with open(os.path.join(APPENDIX_DIR, f"{name}.sql"), encoding="utf-8") as fh:
+            parts.append(fh.read())
+    parts.append("ROLLBACK;")
+    proc = subprocess.Popen(
+        ["docker", "exec", "-i", ctr, "mariadb", "-uroot", f"-p{DB_PASSWORD}",
+         DB, "-N", "-B", "--init-command=SET SESSION sql_mode='PIPES_AS_CONCAT'"],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE, text=True)
+    out, err = proc.communicate("\n".join(parts))
+    error = next((l for l in (err or "").splitlines() if l.startswith("ERROR")), None)
+    rows = [l.split("\t") for l in out.splitlines() if l.strip()]
+    return rows, error
+
+
 def audit_summary(rows):
     tally = {}
     for r in rows:

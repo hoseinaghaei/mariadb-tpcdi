@@ -6,10 +6,10 @@ tpcdi/phaseNN_name.py with NUMBER, TITLE, DESCRIPTION, run() and verify(),
 then listing it in PHASES below.
 """
 from . import (phase02_generate, phase03_schema, phase04_reference,
-               phase05_broker)
+               phase05_broker, phase06_finwire)
 
 PHASES = [phase02_generate, phase03_schema, phase04_reference,
-          phase05_broker]
+          phase05_broker, phase06_finwire]
 
 __all__ = ["PHASES"]
 
