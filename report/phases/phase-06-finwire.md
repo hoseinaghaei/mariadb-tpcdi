@@ -53,7 +53,23 @@ Python reads the concatenated stream, classifies every record by characters
 `LOCAL` is read by the *client*, it sidesteps both the read-only staging mount
 and `secure_file_priv`. The transform is then entirely set-based SQL.
 
-Measured at SF=5: parse 2.6 s, stage and transform 2.0 s, **4.6 s total**.
+Measured at SF=5: parse and stage 3.7 s, transform 1.7 s.
+
+**Memory does not depend on the scale factor.** Three `LOAD DATA` clients run
+concurrently, one per record type, and parsed rows go down the matching pipe
+in blocks of 1,000 (`finwire.CHUNK_ROWS`). At SF=5 that is 206 writes rather
+than 204,561, and at most 3,000 rows resident at any moment.
+
+| | over a bare interpreter |
+|---|---|
+| Chunked streaming (what ships) | **+1.0 MiB** |
+| Buffering (what it replaced) | +47.9 MiB |
+
+The first version held every parsed row before sending it: 55 MiB at SF=5,
+scaling linearly to roughly 1.1 GiB at SF=100 and 5.5 GiB at SF=500, which
+would not fit on the machine this is measured on. The ceiling was never going
+to bite at the scale factors Phase 12 will pick, but it cost nothing to
+remove, and Phase 7's XML replay should use the same shape.
 
 ## 4. Results
 

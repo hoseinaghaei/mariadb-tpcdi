@@ -114,6 +114,59 @@ def parse_line(line):
     return kind, cells
 
 
+CHUNK_ROWS = 1000
+
+
+class _Chunked:
+    """Collects rows and writes them to a sink in blocks.
+
+    A write per row leaves the batching to whatever buffering the file object
+    happens to have. Doing it explicitly keeps the block size a property of
+    this code rather than of Python's defaults, and keeps the resident set at
+    CHUNK_ROWS rows rather than the whole file.
+    """
+
+    def __init__(self, sink, chunk=CHUNK_ROWS):
+        self.sink, self.chunk, self.rows, self.n = sink, chunk, [], 0
+
+    def add(self, row):
+        self.rows.append(row)
+        self.n += 1
+        if len(self.rows) >= self.chunk:
+            self.flush()
+
+    def flush(self):
+        if self.rows:
+            self.sink.write("\n".join(self.rows) + "\n")
+            self.rows.clear()
+
+
+def parse_to(lines, sinks, chunk=CHUNK_ROWS):
+    """Parse lines and write each row to its sink, a chunk at a time.
+
+    `sinks` maps a record type to a file-like object -- in practice the stdin
+    of a `LOAD DATA LOCAL INFILE '/dev/stdin'` client, one per type. At most
+    `chunk` rows per type are held at once, so peak memory does not depend on
+    the scale factor.
+
+    The buffering parse_stream below is kept for tests, where having the rows
+    in hand is more useful than streaming them.
+    """
+    writers = {k: _Chunked(v, chunk) for k, v in sinks.items()}
+    for n, line in enumerate(lines, 1):
+        line = line.rstrip("\r\n")
+        if not line:
+            continue
+        try:
+            kind, cells = parse_line(line)
+        except ParseError as exc:
+            raise ParseError(f"line {n}: {exc}") from None
+        writers[kind].add("\t".join(cells))
+    for w in writers.values():
+        w.flush()
+    return {k: w.n for k, w in writers.items()}
+
+
 def parse_stream(lines):
     """Parse an iterable of lines into {record_type: [row, ...]}.
 

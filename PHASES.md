@@ -57,24 +57,33 @@ warehouse lost its Phase 5 tables once for reasons that were never established
 -- see `report/phases/phase-05-dimbroker.md` section 7a -- and a reloaded
 warehouse is a measurement lost.
 
-**10. Say how you read the data, and why.** Every phase states whether it
+**10. Stream in chunks, do not accumulate.** A parser writes rows into the
+server as it produces them, through `LOAD DATA LOCAL INFILE '/dev/stdin'`, a
+block at a time -- `finwire.CHUNK_ROWS` is 1,000. Holding parsed rows in a
+list works and then stops working: Phase 6's first version measured 55 MiB at
+SF=5 and would have been 5.5 GiB at SF=500. Chunked streaming measured
++1.0 MiB at any size, with 206 writes instead of 204,561. Python shapes rows
+and records what SQL cannot recover later -- document order, and absent versus
+empty; it does no lookups and issues no per-row statements.
+
+**11. Say how you read the data, and why.** Every phase states whether it
 reads a source in one pass or in pieces, and what forced the choice. The
 default is one `LOAD DATA` per file then set-based SQL; rows never travel one
 at a time between Python and the server. If you chunk, say what made chunking
 necessary — size, memory, or a correctness rule such as FINWIRE's global
 posting order.
 
-**11. Read the direction of a comparison, not just its operands.** The audit
+**12. Read the direction of a comparison, not just its operands.** The audit
 bounds row counts with `<=` for one table and `>=` for another, and the
 difference is the rule. Phase 6 spent most of its time learning that; see
 `report/phases/phase-06-finwire.md` section 6.
 
-**12. Write the mapping down before you write the code.** `report/file-to-table-mapping.md`
+**13. Write the mapping down before you write the code.** `report/file-to-table-mapping.md`
 holds the field layouts, filters, discriminators and byte offsets, transcribed
 from the specification so nobody has to open the PDF. Extend it for your phase
 *first*; the act of writing the table is what catches a field you misread.
 
-**13. Say what is measured and what is assumed.** Every phase report ends with
+**14. Say what is measured and what is assumed.** Every phase report ends with
 what is still unverified. If you inferred something, label it an inference
 until you have measured it.
 

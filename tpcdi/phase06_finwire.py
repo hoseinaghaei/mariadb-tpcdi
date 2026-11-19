@@ -85,8 +85,7 @@ def run(scale, force=False, keep=False, **_opts):
             mariadb(ctr, sql=f"drop index {ix} on {t}", check=False)
         print("  emptied")
 
-    rows, counts = _parse(scale)
-    _stage(ctr, rows, counts)
+    _parse_and_stage(ctr, scale)
     _transform(ctr)
 
     for t in TARGETS:
@@ -96,55 +95,66 @@ def run(scale, force=False, keep=False, **_opts):
     print(f"  {'alerts':<12} {alerts} invalid S&P ratings reported")
 
 
-def _parse(scale):
-    """Read all 203 files in one pass and classify every record."""
+def _parse_and_stage(ctr, scale):
+    """Read all 203 files once, writing each record straight into the server.
+
+    Three LOAD DATA clients run at the same time, one per record type, and a
+    parsed row goes down whichever pipe matches.  Nothing is accumulated, so
+    peak memory is independent of the scale factor -- the buffering version
+    this replaced held every row, which measured 55 MiB at SF=5 and would
+    have been about 5.5 GiB at SF=500.
+
+    LOAD DATA LOCAL INFILE reads from the *client*, so '/dev/stdin' is the
+    pipe being written.  No temporary file, no writable mount, no change to
+    secure_file_priv.
+    """
     d = f"{staging_dir(scale)}/Batch1".replace("/staging", "/s")
     print(f"Parsing FINWIRE from {staging_volume(scale)} ...")
+    mariadb(ctr, sql_file=STAGE_SQL)
+
     started = time.time()
-    proc = subprocess.Popen(
+    reader = subprocess.Popen(
         ["docker", "run", "--rm", "-v", f"{staging_volume(scale)}:/s:ro", ALPINE,
          "sh", "-c", f"cat {d}/FINWIRE????Q?"],
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-        text=True, errors="replace")
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, errors="replace")
+
+    loaders = {}
+    for kind, table in STAGE_TABLES.items():
+        cols = ", ".join(f"`{c}`" for c in finwire.COLUMNS[kind])
+        loaders[kind] = subprocess.Popen(
+            ["docker", "exec", "-i", ctr, "mariadb", "-uroot", f"-p{DB_PASSWORD}",
+             "--local-infile=1", DB, "-e",
+             f"LOAD DATA LOCAL INFILE '/dev/stdin' INTO TABLE tpcdi_stage.{table} ({cols})"],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE, text=True)
+
     try:
-        rows, counts = finwire.parse_stream(proc.stdout)
+        counts = finwire.parse_to(reader.stdout,
+                                  {k: p.stdin for k, p in loaders.items()})
     except finwire.ParseError as exc:
-        proc.kill()
+        reader.kill()
+        for p in loaders.values():
+            p.kill()
         raise Fail(f"FINWIRE parse failed: {exc}") from None
-    proc.wait()
-    if proc.returncode != 0:
-        raise Fail(f"could not read FINWIRE files: {proc.stderr.read()[:200]}")
+
+    reader.wait()
+    if reader.returncode != 0:
+        raise Fail(f"could not read FINWIRE files: {reader.stderr.read()[:200]}")
+
+    for kind, proc in loaders.items():
+        _, err = proc.communicate()
+        if proc.returncode != 0:
+            line = next((l for l in (err or "").splitlines() if l.startswith("ERROR")),
+                        (err or "")[:200])
+            raise Fail(f"staging {STAGE_TABLES[kind]} failed: {line}")
+
     total = sum(counts.values())
     if total == 0:
         raise Fail("no FINWIRE records found -- has phase 2 run?")
     print(f"  {total} records in {time.time() - started:.1f}s: "
           + ", ".join(f"{k} {v}" for k, v in counts.items()))
-    return rows, counts
 
-
-def _stage(ctr, rows, counts):
-    """Load the parsed rows, streaming each set through the client's stdin.
-
-    LOAD DATA LOCAL INFILE reads from the *client*, so '/dev/stdin' means the
-    pipe we are writing to. No temporary file, and no need to make the
-    read-only staging mount writable or to widen secure_file_priv.
-    """
-    print("Staging ...")
-    mariadb(ctr, sql_file=STAGE_SQL)
     for kind, table in STAGE_TABLES.items():
-        payload = "\n".join(rows[kind]) + ("\n" if rows[kind] else "")
-        proc = subprocess.Popen(
-            ["docker", "exec", "-i", ctr, "mariadb", "-uroot", f"-p{DB_PASSWORD}",
-             "--local-infile=1", DB, "-e",
-             f"LOAD DATA LOCAL INFILE '/dev/stdin' INTO TABLE tpcdi_stage.{table} "
-             f"({', '.join('`%s`' % c for c in finwire.COLUMNS[kind])})"],
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE, text=True)
-        _, err = proc.communicate(payload)
-        if proc.returncode != 0:
-            line = next((l for l in (err or "").splitlines() if l.startswith("ERROR")),
-                        (err or "")[:200])
-            raise Fail(f"staging {table} failed: {line}")
         got = scalar(ctr, f"select count(*) from tpcdi_stage.{table}", "0")
         if got != str(counts[kind]):
             raise Fail(f"{table}: parsed {counts[kind]} rows but staged {got}")

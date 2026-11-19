@@ -2,5 +2,6 @@
 <project version="4">
   <component name="DataSourcePerFileMappings">
     <file url="file://$PROJECT_DIR$/sql/di/03_dimbroker.sql" value="9a9daa4c-2620-4aa8-884c-9b93cfb6ff97" />
+    <file url="file://$PROJECT_DIR$/sql/di/05_finwire_transform.sql" value="9a9daa4c-2620-4aa8-884c-9b93cfb6ff97" />
   </component>
 </project>
