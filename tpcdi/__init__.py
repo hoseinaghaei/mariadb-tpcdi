@@ -1,16 +1,27 @@
 """TPC-DI on MariaDB.
 
-One module per phase, each owning both its loading and its checks, so that
-everything about a phase is in one place.  Add a phase by writing
-tpcdi/phaseNN_name.py with NUMBER, TITLE, DESCRIPTION, run() and verify(),
-then listing it in PHASES below.
+One module per phase, each owning both its loading and its checks.
 """
-from . import (phase02_generate, phase03_schema, phase04_reference,
-               phase05_broker, phase06_finwire,
-               phase07_customer)
 
-PHASES = [phase02_generate, phase03_schema, phase04_reference,
-          phase05_broker, phase06_finwire, phase07_customer]
+from . import (
+    phase02_generate,
+    phase03_schema,
+    phase04_reference,
+    phase05_broker,
+    phase06_finwire,
+    phase07_customer,
+    phase08_facts,
+)
+
+PHASES = [
+    phase02_generate,
+    phase03_schema,
+    phase04_reference,
+    phase05_broker,
+    phase06_finwire,
+    phase07_customer,
+    phase08_facts,
+]
 
 __all__ = ["PHASES"]
 

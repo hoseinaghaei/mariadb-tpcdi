@@ -26,7 +26,7 @@ Measured at SF=5. File sizes scale linearly with the scale factor except
 | `HR.csv` | 2,016,550 | 25,000 | `DimBroker` | 5 |
 | `FINWIRE*` (203 files) | 46,301,328 | 204,561 | `DimCompany`, `DimSecurity`, `Financial` | 6 |
 | `CustomerMgmt.xml` | 15,622,194 | 541,601 | `DimCustomer`, `DimAccount` | 7 |
-| `Prospect.csv` | 5,200,493 | 24,970 | `Prospect` | 8 |
+| `Prospect.csv` | 5,200,493 | 24,970 | `Prospect` | 7 |
 | `CashTransaction.txt` | 54,627,929 | 602,115 | `FactCashBalances` | 8 |
 | `HoldingHistory.txt` | 12,988,969 | 602,956 | `FactHoldings` | 8 |
 | `WatchHistory.txt` | 69,769,750 | 1,500,311 | `FactWatches` | 8 |
@@ -212,25 +212,161 @@ row current at this record's date**, not the latest row (Table 4.3).
 
 ---
 
-## 5. Why each phase reads its data the way it does
+
+## 5. Phase 8 sources: trades and facts
+
+All five historical source files are pipe-delimited. Their historical-load
+formats omit `CDC_FLAG` and `CDC_DSN`. The actual SF3 files were checked:
+`Trade.txt` has 14 fields, `TradeHistory.txt` has 3, and each of the three
+fact source files has 4. All use CRLF line endings.
+
+### 5.1 `Trade.txt` → `DimTrade` (Clause 2.2.2.17 / 4.5.8)
+
+Fourteen fields, in this exact order:
+
+| # | Source field | → `DimTrade` / use |
+|---:|---|---|
+| 1 | `T_ID` | `TradeID` |
+| 2 | `T_DTS` | Source trade timestamp; not the status event timestamp |
+| 3 | `T_ST_ID` | Resolve `Status` through `StatusType.ST_ID` |
+| 4 | `T_TT_ID` | Resolve `Type` through `TradeType.TT_ID` |
+| 5 | `T_IS_CASH` | `CashFlag` |
+| 6 | `T_S_SYMB` | Resolve security and company keys through `DimSecurity` |
+| 7 | `T_QTY` | `Quantity` |
+| 8 | `T_BID_PRICE` | `BidPrice` |
+| 9 | `T_CA_ID` | Resolve account, customer and broker keys through `DimAccount` |
+| 10 | `T_EXEC_NAME` | `ExecutedBy` |
+| 11 | `T_TRADE_PRICE` | `TradePrice` |
+| 12 | `T_CHRG` | `Fee` |
+| 13 | `T_COMM` | `Commission` |
+| 14 | `T_TAX` | `Tax` |
+
+### 5.2 `TradeHistory.txt` → `DimTrade` (Clause 2.2.2.16 / 4.5.8)
+
+Three fields:
+
+| # | Source field | → `DimTrade` / use |
+|---:|---|---|
+| 1 | `TH_T_ID` | Matches `TradeID` |
+| 2 | `TH_DTS` | Status event timestamp; drives create/close date and time |
+| 3 | `TH_ST_ID` | Status event code |
+
+**Transformation:** logically join the files on `T_ID = TH_T_ID`. Insert a
+new `DimTrade` row when the trade is first encountered; update that row for
+subsequent history events.
+
+For `SBMT` with trade types `TMB` or `TMS`, or for `PNDG`, set the creation
+date and time from `TH_DTS`. For `CMPT` or `CNCL`, set the closing date and
+time from `TH_DTS`. Time keys use one-second resolution.
+
+Resolve security and company keys using the `DimSecurity` version current at
+the earliest `TH_DTS` for that trade. Resolve account, customer and broker
+keys using the `DimAccount` version current at that same earliest event.
+Preserve these original dimension keys during later status updates.
+
+`BatchID` is assigned when the row is initially inserted, not overwritten
+by later status events. The commission and fee validation rules in 4.5.8.3
+and 4.5.8.4 must also be retained.
+
+**Traps:** `T_DTS` is not a substitute for `TH_DTS` when deriving the
+status-based creation and closing timestamps. Do not replace the original
+dimension keys when a later history event updates a trade.
+
+### 5.3 `CashTransaction.txt` → `FactCashBalances` (Clause 2.2.2.3 / 4.5.9)
+
+Four fields:
+
+| # | Source field | → `FactCashBalances` / use |
+|---:|---|---|
+| 1 | `CT_CA_ID` | Match `DimAccount.AccountID` |
+| 2 | `CT_DTS` | Resolve account version and `DimDate` |
+| 3 | `CT_AMT` | Amount added to the daily account balance |
+| 4 | `CT_NAME` | Transaction description; not stored in the fact |
+
+**Filter:** none for the historical load.
+
+**Transformation:** group transactions by account and calendar date. Produce
+one row per account that had transactions on that date. Its `Cash` value is
+the previous balance plus the sum of all `CT_AMT` values for that account
+on that date. Use zero when no previous balance exists.
+
+Resolve `SK_CustomerID` and `SK_AccountID` from the `DimAccount` version
+effective at `CT_DTS`. Resolve `SK_DateID` using the date portion of
+`CT_DTS`. Set `BatchID` according to Clause 4.4.2.
+
+**Trap:** the running balance must follow the natural `AccountID`, not only
+the account surrogate key. A new `DimAccount` surrogate key may be created
+between cash transactions for the same account.
+
+### 5.4 `HoldingHistory.txt` → `FactHoldings` (Clause 2.2.2.9 / 4.5.10)
+
+Four fields:
+
+| # | Source field | → `FactHoldings` |
+|---:|---|---|
+| 1 | `HH_H_T_ID` | `TradeID` — original holding trade |
+| 2 | `HH_T_ID` | `CurrentTradeID` — current modifying trade |
+| 3 | `HH_BEFORE_QTY` | Source before-quantity; not stored |
+| 4 | `HH_AFTER_QTY` | `CurrentHolding` |
+
+**Filter:** none for the historical load.
+
+**Transformation:** match `HH_T_ID` to `DimTrade.TradeID`. Retrieve
+`SK_CustomerID`, `SK_AccountID`, `SK_SecurityID`, `SK_CompanyID` and
+`CurrentPrice` from that current trade. Use its `SK_CloseDateID` and
+`SK_CloseTimeID` for `SK_DateID` and `SK_TimeID`. Set `BatchID` according
+to Clause 4.4.2.
+
+**Trap:** preserve negative holdings. A customer may have a short position.
+Do not use `HH_BEFORE_QTY` as the current holding.
+
+### 5.5 `WatchHistory.txt` → `FactWatches` (Clause 2.2.2.19 / 4.5.12)
+
+Four fields:
+
+| # | Source field | → `FactWatches` / use |
+|---:|---|---|
+| 1 | `W_C_ID` | Resolve customer through `DimCustomer` |
+| 2 | `W_S_SYMB` | Resolve security through `DimSecurity` |
+| 3 | `W_DTS` | Resolve date and effective dimension versions |
+| 4 | `W_ACTION` | `ACTV` inserts; `CNCL` removes |
+
+**Filter:** no rows are discarded. Handle both action types.
+
+**ACTV:** insert a watch row. Resolve the customer and security versions
+current at `W_DTS`. Set `SK_DateID_DatePlaced` from `W_DTS`,
+`SK_DateID_DateRemoved` to `NULL` and assign `BatchID`.
+
+**CNCL:** locate the existing open watch for the same natural customer and
+security, then set `SK_DateID_DateRemoved` from `W_DTS` and update
+`BatchID`. The customer or security surrogate key may have changed since
+activation, so matching only the current surrogate keys is unsafe.
+
+**Trap:** a cancellation updates an existing watch; it does not insert a
+second row. Match across surrogate-key changes using the natural customer
+and security identities while preserving the keys stored on the original
+watch.
+
+
+## 6. Why each phase reads its data the way it does
 
 The question for every phase is the same: **one pass over everything, or in
 pieces?** The answers differ, and each has a reason.
 
-### 5.1 The general rule
+### 6.1 The general rule
 
 Read the whole of a file in one `LOAD DATA`, then transform set-based in SQL.
 Chunk only when something forces it. Rows never travel one at a time between
 Python and the server — that is the slowest possible shape and there has been
 no reason to reach for it.
 
-### 5.2 Phase 2, generation — one invocation, not our choice
+### 6.2 Phase 2, generation — one invocation, not our choice
 
 DIGen writes all three batches itself from a single command and offers no way
 to split the work. 465 MB in 29 s at SF=5. Generation is untimed under Clause
 1.2.2.1.1, so there would be nothing to gain anyway.
 
-### 5.3 Phase 4, the `Audit` table — 238 statements, forced
+### 6.3 Phase 4, the `Audit` table — 238 statements, forced
 
 `LOAD DATA` takes no wildcard, so 238 files mean 238 statements. They are
 concatenated into one SQL block and sent in a single connection, so it is 238
@@ -240,14 +376,14 @@ performance; the file count is simply a constraint.
 The six reference files are one `LOAD DATA` each, whole file at a time. The
 largest, `Time.txt`, is 4.8 MB.
 
-### 5.4 Phase 5, `DimBroker` — whole file, one pass
+### 6.4 Phase 5, `DimBroker` — whole file, one pass
 
 2.0 MB, 25,000 rows, **3.7 s** end to end at SF=5 (1.7 s at SF=3), most of it
 container round-trips rather than data. Scaling is linear at roughly 400 KB per
 unit of scale factor, so SF=100 would be 40 MB and 500,000 rows — still one
 pass, still seconds. No reason to chunk, now or later.
 
-### 5.5 Phase 6, FINWIRE — all 203 files in one pass, deliberately
+### 6.5 Phase 6, FINWIRE — all 203 files in one pass, deliberately
 
 The files are small: 46.3 MB and 204,561 records in total, which fits in memory
 with room to spare even at a much larger scale factor.
@@ -263,7 +399,7 @@ So: Python reads all 203 files, classifies each record by characters 16–18,
 writes three TSVs, and three `LOAD DATA` statements stage them. The SCD-2
 transform then runs as set-based SQL over the staged rows in `PTS` order.
 
-### 5.6 Phase 8 and 9, the facts — one `LOAD DATA` per file
+### 6.6 Phase 8 and 9, the facts — one `LOAD DATA` per file
 
 These are the big ones. `DailyMarket.txt` is 142 MB and 2.4 M rows at SF=5, and
 it is the one file that grows **faster than linear**: `DM_RECORDS` went
@@ -283,26 +419,21 @@ because the window never crosses securities — not by date, which would cut the
 lookback in half at every boundary. That decision belongs in Phase 9 with a
 measurement behind it, not here.
 
-### 5.7 Phase 11, the incremental updates — one pass per batch
+### 6.7 Phase 11, the incremental updates — one pass per batch
 
 Batch2 and Batch3 are 5.6 MB each. The phases are separate because the
 specification requires it (Clause 7.2.5.1), not for any size reason.
 
 ---
 
-## 6. What is still to be transcribed
+## 7. What is still to be transcribed
 
-This document covers the files Phases 4 to 6 need. Before starting Phase 7 or
-8, extend it with:
+This document now covers the source mappings required by Phases 4 to 8.
+Remaining mappings:
 
-- `CustomerMgmt.xml` — the action types and their element structure, Clause
-  2.2.2.5, and the transforms in 4.5.1 and 4.5.4
-- `Prospect.csv`, `CashTransaction.txt`, `HoldingHistory.txt`,
-  `WatchHistory.txt`, `Trade.txt`, `TradeHistory.txt` — Clauses 2.2.2.12, .3,
-  .9, .19, .17, .16
-- `DailyMarket.txt` — Clause 2.2.2.6
-- the Batch2/3 CDC variants, which add `CDC_FLAG` and `CDC_DSN` as two leading
-  columns
+- `DailyMarket.txt` — Clause 2.2.2.6 and transformation 4.5.11
+- Batch2/3 CDC variants, which add `CDC_FLAG` and `CDC_DSN` as two leading
+  columns to the applicable source files
 
-Keep the same shape: the field table, the filter, the derived columns, and the
-trap that would otherwise cost someone an afternoon.
+Keep the same shape: the field table, the filter, the derived columns, and
+the trap that would otherwise cost someone an afternoon.
